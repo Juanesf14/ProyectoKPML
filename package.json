@@ -1,0 +1,98 @@
+{
+  "name": "renamerjf",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "npm rebuild better-sqlite3 canvas --quiet && concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:electron\"",
+    "dev:backend": "nodemon backend/src/index.js",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "build:frontend": "npm run build --workspace=frontend",
+    "rebuild:native": "electron-rebuild -f",
+    "build:mac": "npm run build:frontend && npm run rebuild:native && electron-builder --mac",
+    "build:win": "npm run build:frontend && npm run rebuild:native && electron-builder --win",
+    "build:all": "npm run build:frontend && npm run rebuild:native && electron-builder --mac"
+  },
+  "workspaces": [
+    "frontend"
+  ],
+  "build": {
+    "appId": "com.renamerjf.app",
+    "productName": "RenamerJF",
+    "copyright": "Copyright © 2026 RenamerJF",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "build-assets"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "backend/src/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/renamerjf.db",
+        "to": "renamerjf.db"
+      }
+    ],
+    "mac": {
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build-assets/icon.icns"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build-assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "installerLanguages": [
+        "en_US"
+      ]
+    },
+    "npmRebuild": false
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "concurrently": "^9.2.1",
+    "electron": "^33.4.11",
+    "electron-builder": "^26.8.1",
+    "nodemon": "^3.1.14",
+    "wait-on": "^9.0.5"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.9.0",
+    "canvas": "^3.2.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "fuse.js": "^7.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.7.284",
+    "tesseract.js": "^7.0.0",
+    "uuid": "^9.0.1"
+  }
+}

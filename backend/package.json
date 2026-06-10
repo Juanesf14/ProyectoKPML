@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "import-providers": "node src/scripts/importProviders.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^12.9.0",
+    "canvas": "^3.2.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "fuse.js": "^7.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^5.7.284",
+    "tesseract.js": "^7.0.0",
+    "uuid": "^14.0.0"
+  }
+}
