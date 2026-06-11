@@ -23,7 +23,8 @@ BILLS_DIR  = ML_DIR / "data" / "rendered-bills"
 LABELS_DIR = ML_DIR / "data" / "labels"
 OUT_DIR    = ML_DIR / "data" / "ner_dataset"
 
-MODEL_NAME = "distilbert-base-uncased"
+MODEL_NAME  = "distilbert-base-uncased"
+MAX_LENGTH  = 256      # covers 98.2% of bill texts; avoids slow 512-token batches on CPU
 
 LABEL_NAMES = ["O", "B-CHARGE", "B-ADJUST", "B-PIP", "B-HEALTH", "B-PATIENT", "B-OUTSTANDING"]
 LABEL2ID    = {l: i for i, l in enumerate(LABEL_NAMES)}
@@ -138,7 +139,7 @@ def char_spans_to_token_labels(text, spans, tokenizer):
     encoding = tokenizer(
         text,
         truncation=True,
-        max_length=512,
+        max_length=MAX_LENGTH,
         return_offsets_mapping=True,
     )
     offset_mapping = encoding["offset_mapping"]

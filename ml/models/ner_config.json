@@ -1,0 +1,14 @@
+{
+  "model_path": "bill-ner.onnx",
+  "tokenizer_path": "tokenizer",
+  "labels": [
+    "O",
+    "B-CHARGE",
+    "B-ADJUST",
+    "B-PIP",
+    "B-HEALTH",
+    "B-PATIENT",
+    "B-OUTSTANDING"
+  ],
+  "max_length": 256
+}

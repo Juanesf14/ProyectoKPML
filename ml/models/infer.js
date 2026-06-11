@@ -22,7 +22,7 @@ const ONNX_PATH  = path.join(MODELS_DIR, 'bill-ner.onnx')
 const TOK_DIR    = path.join(MODELS_DIR, 'tokenizer')
 
 const LABEL_NAMES = ['O', 'B-CHARGE', 'B-ADJUST', 'B-PIP', 'B-HEALTH', 'B-PATIENT', 'B-OUTSTANDING']
-const MAX_LENGTH  = 512
+const MAX_LENGTH  = 256
 
 // ── Tokenizer (WordPiece, loaded from vocab.txt) ──────────────────────────────
 
@@ -106,11 +106,15 @@ async function getSession() {
 
 // ── Field extraction ─────────────────────────────────────────────────────────
 
-function parseAmount(tokenText) {
-  // Extract numeric value from tokens like "$1,250", ".00", "##00", "-$900"
-  const combined = tokenText.replace(/##/g, '').replace(/,/g, '')
-  const m = combined.match(/-?\$?([\d]+\.?[\d]*)/)
-  return m ? parseFloat(m[1]) : null
+function parseAmount(tokenGroup) {
+  // Reconstruct dollar value from a group of consecutive same-labeled tokens.
+  // Tokens for "$1,250.00" arrive as ["$", "1", ",", "250", ".", "00"];
+  // joining them gives the full string, from which we extract the number.
+  const joined = tokenGroup.map(t => t.replace(/^##/, '')).join('')
+  const m = joined.match(/[\d,]+\.?\d*/)
+  if (!m) return null
+  const val = parseFloat(m[0].replace(/,/g, ''))
+  return isNaN(val) ? null : val
 }
 
 /**
@@ -156,7 +160,8 @@ async function extractBillingFields(text) {
     tokenLabels.push(LABEL_NAMES[maxIdx])
   }
 
-  // Collect token texts for labeled positions (skip CLS/SEP at idx 0 and last)
+  // Group consecutive tokens that share the same non-O label, then reconstruct amount.
+  // "$1,250.00" arrives as 6 tokens all labeled B-CHARGE; grouping gives the full string.
   const vocab = tokenizer.ids
   const fieldAmounts = {
     'B-CHARGE':      [],
@@ -167,15 +172,22 @@ async function extractBillingFields(text) {
     'B-OUTSTANDING': [],
   }
 
+  let runLabel = null, runTokens = []
+  const flushRun = () => {
+    if (runLabel && runLabel !== 'O' && runTokens.length) {
+      const amount = parseAmount(runTokens)
+      if (amount !== null && amount > 0) fieldAmounts[runLabel].push(amount)
+    }
+    runLabel = null; runTokens = []
+  }
+
   for (let i = 1; i < seqLen - 1; i++) {
     const label = tokenLabels[i]
-    if (label === 'O') continue
-    const tok = vocab[enc.input_ids[i]] || ''
-    const amount = parseAmount(tok)
-    if (amount !== null && amount >= 0) {
-      fieldAmounts[label].push(amount)
-    }
+    const tok   = vocab[enc.input_ids[i]] || ''
+    if (label !== runLabel) { flushRun(); runLabel = label }
+    if (label !== 'O') runTokens.push(tok)
   }
+  flushRun()
 
   // For each field, take the max value found (total charges are usually the largest)
   const pick = (arr) => arr.length ? Math.max(...arr) : 0

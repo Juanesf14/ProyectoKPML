@@ -6,6 +6,73 @@ const { ocrExtract, ocrExtractImage, ocrExtractMultiPages } = require('./ocr')
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.webp'])
 const OCR_THRESHOLD = 50
 
+// ── ML-NER model (lazy-loaded, optional) ─────────────────────────────────────
+// Model lives in ml/models/infer.js; gracefully absent if not yet exported.
+
+const ML_CONFIDENCE_THRESHOLD = 0.65  // Try ML when regex confidence falls below this
+
+let _mlExtract = null
+const getMlExtract = () => {
+  if (_mlExtract === null) {
+    try {
+      const inferPath = path.resolve(__dirname, '../../../ml/models/infer.js')
+      _mlExtract = fs.existsSync(inferPath) ? require(inferPath).extractBillingFields : false
+    } catch {
+      _mlExtract = false
+    }
+  }
+  return _mlExtract || null
+}
+
+const tryMlExtraction = async (text) => {
+  const extract = getMlExtract()
+  if (!extract) return null
+
+  try {
+    const ml = await extract(text)
+    // Require CHARGE + at least 2 other fields to trust the result
+    if (!ml.fieldsFound.includes('CHARGE') || ml.fieldsFound.length < 3) return null
+
+    const outstanding = ml.outstanding > 0
+      ? ml.outstanding
+      : Math.max(0, +(ml.totalCharge - ml.adjustments - ml.pipPaid - ml.healthPaid - ml.patientPaid).toFixed(2))
+
+    const totals = {
+      totalCharges:     ml.totalCharge,
+      totalAdjustments: ml.adjustments,
+      pipPaid:          ml.pipPaid,
+      healthPaid:       ml.healthPaid,
+      patientPaid:      ml.patientPaid,
+      outstanding,
+    }
+
+    return {
+      claims: [{
+        claimId:     'ML',
+        charge:       ml.totalCharge,
+        adjustments:  ml.adjustments,
+        patientPaid:  ml.patientPaid,
+        healthPaid:   ml.healthPaid,
+        pipPaid:      ml.pipPaid,
+        payments: [
+          ...(ml.pipPaid     > 0 ? [{ source: 'pip',     planName: 'PIP',       amount: ml.pipPaid     }] : []),
+          ...(ml.healthPaid  > 0 ? [{ source: 'health',  planName: 'Insurance', amount: ml.healthPaid  }] : []),
+          ...(ml.patientPaid > 0 ? [{ source: 'patient', planName: 'Patient',   amount: ml.patientPaid }] : []),
+        ],
+        outstanding,
+        _hasCharge:   true,
+        _hasBadAmount: false,
+      }],
+      totals,
+      confidence: Math.min(0.85, 0.60 + ml.fieldsFound.length * 0.05),
+      issues:     [`ML-NER extraído: ${ml.fieldsFound.join(', ')}`],
+      parserUsed: 'ml-ner',
+    }
+  } catch {
+    return null
+  }
+}
+
 const extractText = async (filePath) => {
   try {
     const buffer = fs.readFileSync(filePath)
@@ -470,11 +537,21 @@ const analyzeBillingDocument = async (filePath) => {
         extractedText: '',
         parserUsed: 'none',
         usedOcr,
+        mlUsed: false,
       }
     }
 
     const result = parseBilling(text)
-    return { ...result, extractedText: text, usedOcr }
+
+    // If regex parsers gave low confidence, try ML-NER before falling through to Gemini
+    if (result.confidence < ML_CONFIDENCE_THRESHOLD) {
+      const mlResult = await tryMlExtraction(text)
+      if (mlResult) {
+        return { ...mlResult, extractedText: text, usedOcr, mlUsed: true }
+      }
+    }
+
+    return { ...result, extractedText: text, usedOcr, mlUsed: false }
 
   } catch (err) {
     console.error('Billing parser error:', err.message)
