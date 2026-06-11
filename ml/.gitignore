@@ -1,9 +1,13 @@
 node_modules/
+.venv/
 
 # Generated data — too large for git, regenerate with npm run pipeline
-data/synthea-output/
-data/rendered-bills/
-data/labels/
+data/
+
+# Trained model weights — too large for git
+models/bill-ner/
+models/bill-ner.onnx
+models/tokenizer/
 
 # Synthea JAR — download with generate.sh
 synthea/synthea-with-dependencies.jar
