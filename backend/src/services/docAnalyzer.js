@@ -72,7 +72,7 @@ const exactMatch = (text, providers) => {
  * Returns null if the best match confidence is below 0.4.
  */
 const fuzzyMatch = (text, providers) => {
-  const words = text.replace(/\n/g, ' ').split(/\s+/).filter(w => w.length > 3)
+  const words = text.replace(/\n/g, ' ').split(/\s+/).filter(w => w.length >= 3)
   const chunks = []
   for (let i = 0; i < words.length - 2; i++) {
     chunks.push(words.slice(i, i + 4).join(' '))

@@ -9,23 +9,23 @@ const db = require('../db/schema')
 const router = express.Router()
 router.use(authMiddleware)
 
-// Confidence below this threshold triggers the AI banner
-const AI_THRESHOLD = 0.60
+// Confidence below this threshold triggers the AI banner / Gemini escalation
+const AI_THRESHOLD = 0.35
 
 /**
  * POST /api/billing/analyze
  *
  * 1. Extract text from file (pdf-parse → OCR fallback)
  * 2. Run Athena regex parser + confidence scoring
- * 3. If confidence < 0.60 AND allowAI=false → return needsAI=true (banner)
- * 4. If confidence < 0.60 AND allowAI=true  → escalate to Gemini
+ * 3. If confidence < 0.35 AND allowAI=false → return needsAI=true (banner)
+ * 4. If confidence < 0.35 AND allowAI=true  → escalate to Gemini
  */
 router.post('/analyze', async (req, res) => {
-  const { filePath, allowAI = false } = req.body
+  const { filePath, allowAI = false, forceMl = false } = req.body
   if (!filePath)                  return res.status(400).json({ error: 'filePath is required' })
   if (!path.isAbsolute(filePath)) return res.status(400).json({ error: 'Invalid file path' })
 
-  const result = await analyzeBillingDocument(filePath)
+  const result = await analyzeBillingDocument(filePath, { forceMl })
   const { extractedText, ...responseData } = result
 
   // Send a debug snippet (first 4000 chars) so the frontend can show the raw extracted text.

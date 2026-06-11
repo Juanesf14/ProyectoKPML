@@ -15,7 +15,7 @@ router.use(authMiddleware)
  * Minimum local-analysis confidence below which Gemini is invoked.
  * The caller must also pass allowAI=true (explicit user consent per session).
  */
-const GEMINI_THRESHOLD = 0.25
+const GEMINI_THRESHOLD = 0.35
 
 /**
  * POST /api/analyze

@@ -11,8 +11,15 @@ export default function Dashboard({ user, onLogout }) {
   const [refreshTrigger, setRefreshTrigger]     = useState(0)
   const [mode, setMode]                         = useState('single') // 'single' | 'batch' | 'cases'
   const [billingOpen, setBillingOpen]           = useState(false)
+  const [renamerInitialFile, setRenamerInitialFile] = useState(null)
 
   const handleRenameSuccess = () => setRefreshTrigger(prev => prev + 1)
+
+  const handleSendToRenamer = (file) => {
+    setBillingOpen(false)
+    setMode('single')
+    setRenamerInitialFile(file)
+  }
 
   return (
     <div style={styles.container}>
@@ -54,7 +61,11 @@ export default function Dashboard({ user, onLogout }) {
       </div>
 
       {billingOpen && (
-        <BillingPanel caseData={null} onClose={() => setBillingOpen(false)} />
+        <BillingPanel
+          caseData={null}
+          onClose={() => setBillingOpen(false)}
+          onSendToRenamer={handleSendToRenamer}
+        />
       )}
 
       {mode === 'single' ? (
@@ -63,6 +74,8 @@ export default function Dashboard({ user, onLogout }) {
             <FileRenamer
               selectedProvider={selectedProvider}
               onRenameSuccess={handleRenameSuccess}
+              initialFile={renamerInitialFile}
+              onInitialFileConsumed={() => setRenamerInitialFile(null)}
             />
           </div>
           <div style={styles.panel}>

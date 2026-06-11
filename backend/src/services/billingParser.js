@@ -9,7 +9,7 @@ const OCR_THRESHOLD = 50
 // ── ML-NER model (lazy-loaded, optional) ─────────────────────────────────────
 // Model lives in ml/models/infer.js; gracefully absent if not yet exported.
 
-const ML_CONFIDENCE_THRESHOLD = 0.65  // Try ML when regex confidence falls below this
+const ML_CONFIDENCE_THRESHOLD = 0.70  // Try ML when regex confidence falls below this
 
 let _mlExtract = null
 const getMlExtract = () => {
@@ -30,6 +30,7 @@ const tryMlExtraction = async (text) => {
 
   try {
     const ml = await extract(text)
+    console.log(`[ML-NER] Campos encontrados: [${ml.fieldsFound.join(', ') || 'ninguno'}]  totalCharge=${ml.totalCharge}`)
     // Require CHARGE + at least 2 other fields to trust the result
     if (!ml.fieldsFound.includes('CHARGE') || ml.fieldsFound.length < 3) return null
 
@@ -249,17 +250,17 @@ const parseHospitalBill = (text) => {
   const charge = money(/(?:total\s+(?:gross\s+)?charges?|total\s+billed|gross\s+charges?|amount\s+billed)[:\s\$]+\$?\s*([\d,]+\.\d{2})/i)
   if (!charge) return []
 
-  // Adjustments — covers: "Contractual Adjustment", "Insurance Adjustment", "Network Adjustment",
-  //   "Balance Adjustment", "Discount", "Write-off", "-$X" after adjustment keywords
-  const adjRaw = money(/(?:(?:contractual|insurance|network|balance|provider)[\s\w]*adj(?:ustment)?s?|discount|write.?off)[\s:\-\$]+\$?\s*([\d,]+\.\d{2})/i)
+  // Adjustments — covers: "Total Adjustments", "Contractual Adjustment", "Insurance Adjustment",
+  //   "Network Adjustment", "Balance Adjustment", "Discount", "Write-off"
+  const adjRaw = money(/(?:total\s+adj(?:ustment)?s?|(?:contractual|insurance|network|balance|provider)[\s\w]*adj(?:ustment)?s?|discount|write.?off)[\s:\-\$]+\$?\s*([\d,]+\.\d{2})/i)
   // PIP / auto insurance
   const pipRaw = money(/(?:\bpip\b|personal\s+injury\s+prot(?:ection)?|auto\s+ins(?:urance)?)[\s:\$]+\$?\s*([\d,]+\.\d{2})/i)
-  // Insurance paid — flexible separator (handles multi-line "Insurance Paid Amount:\n-\n$X")
-  const insRaw = money(/(?:insurance\s+paid|ins\.?\s+paid\s+amount|insurance\s+pay(?:ment)?|plan\s+paid|third.?party\s+pay(?:ment)?)s?[\s\S]{0,25}\$([\d,]+\.\d{2})/i)
+  // Insurance paid — flexible separator; also catches "Total <PlanName>" grand-total lines
+  const insRaw = money(/(?:insurance\s+paid|ins\.?\s+paid\s+amount|insurance\s+pay(?:ment)?|plan\s+paid|third.?party\s+pay(?:ment)?|total\s+(?:capital|blue\s+cross|aetna|cigna|humana|anthem|united|medicaid|medicare|health\s+plan))s?[\s\S]{0,30}\$([\d,]+\.\d{2})/i)
   // Patient PAID — only explicit past-tense labels (copay, cash, patient payment).
   // "Patient Balance Due" / "Total Due" / "Patient Responsibility" mean the patient OWES that
   // amount (the lien in PI cases) — they are NOT payments and must NOT be subtracted here.
-  const patientPaidRaw = money(/(?:patient\s+(?:paid|payment|cash)|self.?pay\s+(?:paid|payment)|(?:patient\s+)?copay(?:\s+paid)?)[\s:\$]+\$?\s*([\d,]+\.\d{2})/i)
+  const patientPaidRaw = money(/(?:total\s+patient\s+pay(?:ment)?s?|patient\s+(?:paid|payment|cash)|self.?pay\s+(?:paid|payment)|(?:patient\s+)?copay(?:\s+paid)?)[\s:\$]+\$?\s*([\d,]+\.\d{2})/i)
 
   // "Balance Due" / "Patient Balance Due" — cross-check: this should equal the outstanding
   // computed below. Used only for confidence validation, not subtracted from charges.
@@ -505,7 +506,8 @@ const aggregateTotals = (claims) => {
 }
 
 // Main entry point — handles PDF (text or scanned) and image files
-const analyzeBillingDocument = async (filePath) => {
+// forceMl=true skips the confidence gate and always tries ML (manual button)
+const analyzeBillingDocument = async (filePath, { forceMl = false } = {}) => {
   try {
     const ext     = path.extname(filePath).toLowerCase()
     const isImage = IMAGE_EXTENSIONS.has(ext)
@@ -543,12 +545,15 @@ const analyzeBillingDocument = async (filePath) => {
 
     const result = parseBilling(text)
 
-    // If regex parsers gave low confidence, try ML-NER before falling through to Gemini
-    if (result.confidence < ML_CONFIDENCE_THRESHOLD) {
+    // If regex parsers gave low confidence (or user forced ML), try ML-NER before Gemini
+    if (forceMl || result.confidence < ML_CONFIDENCE_THRESHOLD) {
+      console.log(`[ML-NER] Activando modelo (conf regex=${result.confidence.toFixed(2)}, forced=${forceMl})`)
       const mlResult = await tryMlExtraction(text)
       if (mlResult) {
+        console.log(`[ML-NER] Éxito — campos: ${mlResult.issues[0]}, conf=${mlResult.confidence.toFixed(2)}`)
         return { ...mlResult, extractedText: text, usedOcr, mlUsed: true }
       }
+      console.log('[ML-NER] No fue útil (< 3 campos detectados) — usando resultado regex')
     }
 
     return { ...result, extractedText: text, usedOcr, mlUsed: false }

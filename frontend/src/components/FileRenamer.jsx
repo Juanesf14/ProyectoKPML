@@ -5,7 +5,7 @@ import AIConsentModal from './AIConsentModal'
 import FilePreview from './FilePreview'
 import DateField from './DateField'
 
-export default function FileRenamer({ selectedProvider, onRenameSuccess }) {
+export default function FileRenamer({ selectedProvider, onRenameSuccess, initialFile, onInitialFileConsumed }) {
   const [docTypes, setDocTypes] = useState([])
   const [form, setForm] = useState({
     docType: '',
@@ -44,6 +44,21 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess }) {
   useEffect(() => {
     if (selectedProvider) setEntityName(selectedProvider.name)
   }, [selectedProvider])
+
+  // When BillingPanel sends a file after saving, auto-load it here
+  useEffect(() => {
+    if (!initialFile) return
+    setCurrentFile(initialFile)
+    setSuggestedProvider(null)
+    setAutoFilledFields({})
+    setFlags(null)
+    setSessionId(null)
+    setAiConsent(null)
+    setPendingFile(null)
+    loadPreview(initialFile)
+    runAnalysis(initialFile)
+    if (onInitialFileConsumed) onInitialFileConsumed()
+  }, [initialFile])
 
   useEffect(() => {
     buildName()

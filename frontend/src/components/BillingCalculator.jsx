@@ -64,14 +64,18 @@ export default function BillingCalculator({
   aiLoading,
   aiUsed,
   usedOcr,
+  mlUsed,
+  mlLoading,
   onClaimChange,
   onUseAI,
+  onForceMl,
   onDismissBanner,
   onSave,
   saving,
 }) {
-  const showBanner  = confidence !== null && confidence < 0.60 && !bannerDismissed && !aiUsed
-  const showNotice  = confidence !== null && confidence >= 0.60 && confidenceIssues.length > 0 && !aiUsed
+  const showBanner  = confidence !== null && confidence < 0.35 && !bannerDismissed && !aiUsed
+  const showNotice  = confidence !== null && confidence >= 0.35 && confidenceIssues.length > 0 && !aiUsed
+  const showGmBadge = aiUsed || (confidence !== null && confidence < 0.35)
 
   // Totals recalculate from editable claims state
   const totals = useMemo(() => {
@@ -128,7 +132,7 @@ export default function BillingCalculator({
   return (
     <div style={s.container}>
 
-      {/* Orange banner — confidence < 0.60, suggests AI */}
+      {/* Orange banner — confidence < 0.35, suggests AI */}
       {showBanner && (
         <AIBanner
           issues={confidenceIssues}
@@ -141,14 +145,34 @@ export default function BillingCalculator({
       {/* Blue info notice — confidence OK but has soft warnings */}
       {showNotice && <InfoNotice issues={confidenceIssues} />}
 
-      {/* Confidence + OCR badges */}
+      {/* Confidence + OCR + ML + GM badges + Try ML button */}
       <div style={s.metaRow}>
         {confidence !== null && (
-          <span style={{ ...s.badge, background: confidence >= 0.60 ? '#0d3021' : '#3d1f00', color: confidence >= 0.60 ? '#68d391' : '#f6ad55' }}>
-            {aiUsed ? 'AI' : `${Math.round(confidence * 100)}%`} confidence
+          <span style={{ ...s.badge, background: confidence >= 0.35 ? '#0d3021' : '#3d1f00', color: confidence >= 0.35 ? '#68d391' : '#f6ad55' }}>
+            {Math.round(confidence * 100)}% confidence
+          </span>
+        )}
+        {mlUsed && (
+          <span title="ML-NER model was used to extract fields" style={{ ...s.badge, background: '#1a2640', color: '#76e4f7', fontWeight: 700, letterSpacing: '0.04em' }}>
+            ML
+          </span>
+        )}
+        {showGmBadge && (
+          <span title={aiUsed ? 'Gemini AI was used' : 'Gemini recommended — confidence too low'} style={{ ...s.badge, background: aiUsed ? '#2d1a40' : '#3d2200', color: aiUsed ? '#b794f4' : '#f6ad55', fontWeight: 700, letterSpacing: '0.04em' }}>
+            GM
           </span>
         )}
         {usedOcr && <span style={{ ...s.badge, background: '#1a2840', color: '#63b3ed' }}>OCR</span>}
+        {!mlUsed && !aiUsed && confidence !== null && (
+          <button
+            onClick={onForceMl}
+            disabled={mlLoading}
+            title="Run ML-NER model manually on this document"
+            style={s.mlBtn}
+          >
+            {mlLoading ? '...' : 'Try ML'}
+          </button>
+        )}
       </div>
 
       {/* Claims table */}
@@ -295,7 +319,14 @@ const s = {
     lineHeight: 1.6,
   },
 
-  metaRow: { display: 'flex', gap: 6, flexShrink: 0 },
+  metaRow: { display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' },
+  mlBtn: {
+    padding: '2px 8px', borderRadius: 4,
+    border: '1px solid #2c5282', background: 'transparent',
+    color: '#76e4f7', fontSize: 11, cursor: 'pointer',
+    fontWeight: 600, letterSpacing: '0.03em',
+    opacity: 1, transition: 'opacity 0.15s',
+  },
   badge: {
     display: 'inline-block',
     padding: '2px 8px',

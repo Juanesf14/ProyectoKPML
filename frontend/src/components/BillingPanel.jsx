@@ -13,7 +13,7 @@ import BillingCalculator from './BillingCalculator'
  *   caseData  {object}   The case row from CaseTracker
  *   onClose   {function}
  */
-export default function BillingPanel({ caseData, onClose }) {
+export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
   const [file, setFile]             = useState(null)
   const [previewData, setPreviewData] = useState(null) // { base64, mimeType } | 'loading' | null
   const [zoom, setZoom]             = useState(1)
@@ -30,6 +30,8 @@ export default function BillingPanel({ caseData, onClose }) {
   const [saving, setSaving]                   = useState(false)
   const [debugText, setDebugText]             = useState('')
   const [parserUsed, setParserUsed]           = useState(null)
+  const [mlUsed, setMlUsed]                   = useState(false)
+  const [mlLoading, setMlLoading]             = useState(false)
   const [debugOpen, setDebugOpen]             = useState(false)
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -52,6 +54,7 @@ export default function BillingPanel({ caseData, onClose }) {
     setUsedOcr(data.usedOcr || false)
     setDebugText(data.debugText || '')
     setParserUsed(data.parserUsed || null)
+    setMlUsed(data.mlUsed === true)
   }
 
   // ── File selection ─────────────────────────────────────────────────────────
@@ -85,6 +88,8 @@ export default function BillingPanel({ caseData, onClose }) {
     setAiLoading(false)
     setDebugText('')
     setParserUsed(null)
+    setMlUsed(false)
+    setMlLoading(false)
     setDebugOpen(false)
   }
 
@@ -108,6 +113,19 @@ export default function BillingPanel({ caseData, onClose }) {
     if (!file) return
     setBannerDismissed(false)
     runAnalysis(file.path, true)
+  }
+
+  const handleForceMl = async () => {
+    if (!file) return
+    setMlLoading(true)
+    try {
+      const { data } = await api.post('/billing/analyze', { filePath: file.path, allowAI: false, forceMl: true })
+      applyResult(data)
+    } catch (err) {
+      console.error('ML force error:', err)
+    } finally {
+      setMlLoading(false)
+    }
   }
 
   // ── Claim editing ──────────────────────────────────────────────────────────
@@ -138,7 +156,11 @@ export default function BillingPanel({ caseData, onClose }) {
         confidence: confidence     ?? 0,
         source:     aiUsed ? 'ai' : 'local',
       })
-      alert('Billing summary saved.')
+      if (onSendToRenamer && file) {
+        onSendToRenamer(file)
+      } else {
+        alert('Billing summary saved.')
+      }
     } catch (err) {
       console.error('Save error:', err)
       alert('Error saving billing summary.')
@@ -255,8 +277,11 @@ export default function BillingPanel({ caseData, onClose }) {
                 aiLoading={aiLoading}
                 aiUsed={aiUsed}
                 usedOcr={usedOcr}
+                mlUsed={mlUsed}
+                mlLoading={mlLoading}
                 onClaimChange={handleClaimChange}
                 onUseAI={handleUseAI}
+                onForceMl={handleForceMl}
                 onDismissBanner={() => setBannerDismissed(true)}
                 onSave={handleSave}
                 saving={saving}
@@ -275,6 +300,7 @@ const PARSER_LABELS = {
   'summary-table':  'Athena Summary Table',
   'cpt-lines':      'CPT Line Items',
   'hospital-totals':'Hospital / UB-04 Totals',
+  'ml-ner':         'ML-NER Model',
   'none':           'No parser matched',
 }
 
