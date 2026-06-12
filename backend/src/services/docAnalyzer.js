@@ -36,15 +36,121 @@ const countOccurrences = (text, name) => {
 }
 
 /**
+ * Provider names that are generic medical/geographic words rather than real
+ * entity names. The DB contains placeholder rows like "Hospital" or "Ambulance"
+ * that would otherwise hijack matching, since those words appear in almost
+ * every medical document.
+ */
+const GENERIC_NAMES = new Set([
+  'hospital', 'ambulance', 'emergency', 'center', 'centre', 'clinic',
+  'health', 'healthcare', 'medical', 'doctors', 'doctor', 'care',
+  'group', 'provider', 'florida', 'imaging', 'radiology', 'pharmacy',
+  // Billing vocabulary that appears in virtually every statement.
+  'total', 'charges', 'charge', 'statement', 'patient', 'insurance',
+  'balance', 'account', 'payment', 'adjustment', 'service', 'services',
+  'jacksonville', 'orlando', 'tampa', 'miami',
+])
+
+const isGenericName = (name) => GENERIC_NAMES.has(name.trim().toLowerCase())
+
+/**
+ * Looks for an explicitly labelled provider line ("Provider:", "Facility:",
+ * "Billing Provider:") and matches DB providers against that line only.
+ * An explicit label is the strongest signal in the document, so this runs
+ * before whole-document occurrence counting. Picks the longest non-generic
+ * provider name contained in the line.
+ */
+const labeledProviderMatch = (text, providers) => {
+  const m = /(?:^|\n)[ \t]*(?:billing\s+provider|treating\s+provider|provider|facility)\s*[:\-][ \t]*([^\n]+)/i.exec(text)
+  if (!m) return null
+
+  const line = m[1].trim()
+  if (!line) return null
+
+  // Prefer the match closest to the start of the line — entity names lead with
+  // the brand ("HCA Florida Central Hospital" should match "HCA", not a
+  // different facility named "Central Hospital"). Ties broken by longest name.
+  let best = null
+  let bestIdx = Infinity
+  const lower = line.toLowerCase()
+  for (const p of providers) {
+    if (isGenericName(p.name)) continue
+    if (countOccurrences(line, p.name) === 0) continue
+    const idx = lower.indexOf(p.name.toLowerCase())
+    if (idx === -1) continue
+    if (idx < bestIdx || (idx === bestIdx && p.name.length > best.name.length)) {
+      best = p
+      bestIdx = idx
+    }
+  }
+
+  if (!best) return null
+  return {
+    provider_id: best.id,
+    name: best.name,
+    confidence: 1.0,
+    method: 'labeled',
+    occurrences: 1,
+  }
+}
+
+/**
+ * Fuzzy-matches the document's first few lines against provider names.
+ * Letterhead/title lines almost always name the billing entity, so a strong
+ * fuzzy hit there ("UF HEALTH JACKSONVILLE" → "UF Jacksonville") is more
+ * reliable than whole-document occurrence counting.
+ */
+const tokenize = (s) => s.toLowerCase().split(/[^a-z0-9&]+/).filter(t => t.length >= 2)
+
+const headerMatch = (text, providers) => {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length >= 4).slice(0, 8)
+
+  let best = null
+  for (const line of lines) {
+    if (line.length > 60) continue
+    const lineTokens = new Set(tokenize(line))
+    if (lineTokens.size === 0) continue
+
+    for (const p of providers) {
+      if (isGenericName(p.name)) continue
+      const nameTokens = tokenize(p.name)
+      if (nameTokens.length === 0) continue
+
+      // Every word of the provider name must appear in the line, and at least
+      // one of them must be distinctive (not a generic word) — otherwise
+      // "Jacksonville Center" would match any Jacksonville letterhead.
+      if (!nameTokens.every(t => lineTokens.has(t))) continue
+      if (!nameTokens.some(t => !GENERIC_NAMES.has(t))) continue
+
+      if (!best || nameTokens.length > best.tokens ||
+          (nameTokens.length === best.tokens && p.name.length > best.p.name.length)) {
+        best = { p, tokens: nameTokens.length }
+      }
+    }
+    if (best) break // first header line with a hit wins — it's the letterhead
+  }
+
+  if (!best) return null
+  return {
+    provider_id: best.p.id,
+    name: best.p.name,
+    confidence: 0.9,
+    method: 'header',
+  }
+}
+
+/**
  * Returns the provider whose name appears most often in the document (exact string match).
  * Ambulance providers are penalised (×0.6) so they lose tie-breakers against hospitals
  * or insurers — ambulance charges are secondary bills in most MVA cases.
+ * Generic placeholder names ("Hospital", "Ambulance", ...) are skipped entirely.
  */
 const exactMatch = (text, providers) => {
   let best = null
   let bestScore = 0
 
   for (const p of providers) {
+    if (isGenericName(p.name)) continue
     const count = countOccurrences(text, p.name)
     if (count === 0) continue
 
@@ -78,7 +184,7 @@ const fuzzyMatch = (text, providers) => {
     chunks.push(words.slice(i, i + 4).join(' '))
   }
 
-  const fuse = new Fuse(providers, { keys: ['name'], threshold: 0.6, includeScore: true })
+  const fuse = new Fuse(providers.filter(p => !isGenericName(p.name)), { keys: ['name'], threshold: 0.6, includeScore: true })
 
   // provider_id → { item, bestScore, hits }
   const scores = new Map()
@@ -240,7 +346,14 @@ const analyzeDocument = async (filePath, providers) => {
       text    = await ocrExtractImage(filePath)
       usedOcr = true
     } else {
-      text = await extractText(filePath)
+      // pdf-parse throws on malformed PDFs (e.g. "bad XRef entry"); treat that
+      // the same as an empty text layer so the OCR fallback still runs.
+      try {
+        text = await extractText(filePath)
+      } catch (parseErr) {
+        console.warn('pdf-parse failed, falling back to OCR:', parseErr.message)
+        text = ''
+      }
 
       if (text.trim().length < OCR_THRESHOLD) {
         try {
@@ -257,6 +370,12 @@ const analyzeDocument = async (filePath, providers) => {
 
     const dates = extractDates(text)
     const flags = detectFlags(text)
+
+    const labeled = labeledProviderMatch(text, providers)
+    if (labeled) return { suggestion: labeled, dates, flags, usedOcr, extractedText: text }
+
+    const header = headerMatch(text, providers)
+    if (header) return { suggestion: header, dates, flags, usedOcr, extractedText: text }
 
     const exact = exactMatch(text, providers)
     if (exact) return { suggestion: exact, dates, flags, usedOcr, extractedText: text }
@@ -306,11 +425,17 @@ const extractAmbulanceCompany = (text) => {
     // "[Company] ambulance" — non-greedy expande hasta "ambulance", captura Fire Rescue si está en el nombre
     new RegExp(`${NAME}\\s+ambulance`, 'i'),
   ]
+  // Phrases that indicate the capture grabbed surrounding prose or table
+  // headers ("Admission Type Emergency Department via") rather than a company.
+  // "code"/"charg" without word boundaries: OCR often fuses table headers
+  // into tokens like "CodeCharge" that boundary checks would miss.
+  const NOT_A_COMPANY = /\b(via|type|department|admission|arrival|emergency|description|transport(?:ed)?)\b|cpt|code|charg/i
+
   for (const re of patterns) {
     const m = re.exec(text)
     if (m) {
       const name = m[1].trim().replace(/\s{2,}/g, ' ')
-      if (name.length > 2 && name.length < 60) return name
+      if (name.length > 2 && name.length < 60 && !NOT_A_COMPANY.test(name)) return name
     }
   }
   return null
