@@ -55,7 +55,16 @@ router.post('/', async (req, res) => {
   storeSession(sessionId, result.extractedText || '')
 
   if (providers.length === 0) {
-    return res.json({ suggestion: null, reason: 'No providers registered', sessionId })
+    // Dates and flags come from the document itself, not the provider list —
+    // return them so the UI can pre-fill DOS / update date even with no providers.
+    return res.json({
+      suggestion: null,
+      reason: 'No providers registered',
+      dates: result.dates,
+      flags: result.flags,
+      usedOcr: result.usedOcr,
+      sessionId,
+    })
   }
 
   const lowConfidence = !result.suggestion || result.suggestion.confidence < GEMINI_THRESHOLD
