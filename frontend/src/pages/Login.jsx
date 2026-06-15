@@ -1,12 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import api from '../services/api'
 
 export default function Login({ onLogin }) {
-  const [isRegister, setIsRegister] = useState(false)
+  // 'login' | 'bootstrap' — bootstrap shows on a fresh install with no users yet.
+  const [mode, setMode] = useState('login')
+  const [checking, setChecking] = useState(true)
   const [form, setForm] = useState({ name: '', email: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // On load, ask the backend whether this install still needs its first admin.
+  useEffect(() => {
+    api.get('/auth/status')
+      .then(({ data }) => setMode(data.needsBootstrap ? 'bootstrap' : 'login'))
+      .catch(() => setMode('login'))
+      .finally(() => setChecking(false))
+  }, [])
+
+  const isBootstrap = mode === 'bootstrap'
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
 
   const handleSubmit = async e => {
@@ -14,14 +25,13 @@ export default function Login({ onLogin }) {
     setError('')
     setLoading(true)
     try {
-      const endpoint = isRegister ? '/auth/register' : '/auth/login'
-      const payload = isRegister ? form : { email: form.email, password: form.password }
+      const endpoint = isBootstrap ? '/auth/bootstrap' : '/auth/login'
+      const payload = isBootstrap ? form : { email: form.email, password: form.password }
       const { data } = await api.post(endpoint, payload)
       localStorage.setItem('token', data.token)
       localStorage.setItem('user', JSON.stringify(data.user))
       onLogin(data.user)
     } catch (err) {
-      // Map generic backend messages to user-friendly text.
       const raw = err.response?.data?.error || ''
       if (raw === 'Invalid credentials') {
         setError('Wrong email or password. Please try again.')
@@ -35,13 +45,30 @@ export default function Login({ onLogin }) {
     }
   }
 
+  if (checking) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <p style={styles.subtitle}>Loading…</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={styles.container}>
       <div style={styles.card}>
         <h1 style={styles.title}>K&P · RenamerJF</h1>
         <p style={styles.subtitle}>Medical Records Manager</p>
+
+        {isBootstrap && (
+          <div style={styles.bootstrapNote}>
+            First-time setup — create the administrator account for this computer.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} style={styles.form}>
-          {isRegister && (
+          {isBootstrap && (
             <input
               style={styles.input}
               name="name"
@@ -64,7 +91,7 @@ export default function Login({ onLogin }) {
             style={styles.input}
             name="password"
             type="password"
-            placeholder="Password"
+            placeholder={isBootstrap ? 'Password (min. 8 characters)' : 'Password'}
             value={form.password}
             onChange={handleChange}
             required
@@ -76,15 +103,15 @@ export default function Login({ onLogin }) {
             </div>
           )}
           <button style={styles.button} type="submit" disabled={loading}>
-            {loading ? 'Loading...' : isRegister ? 'Sign up' : 'Sign in'}
+            {loading ? 'Loading...' : isBootstrap ? 'Create administrator' : 'Sign in'}
           </button>
         </form>
-        <p style={styles.toggle}>
-          {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
-          <span style={styles.link} onClick={() => setIsRegister(!isRegister)}>
-            {isRegister ? 'Sign in' : 'Sign up'}
-          </span>
-        </p>
+
+        {!isBootstrap && (
+          <p style={styles.toggle}>
+            Forgot your password? Ask an administrator to reset it.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -173,6 +200,17 @@ const styles = {
     textAlign: 'center',
     marginTop: 20,
     fontSize: 13,
+  },
+  bootstrapNote: {
+    background: 'rgba(201, 168, 76, 0.10)',
+    border: '1px solid rgba(201, 168, 76, 0.35)',
+    borderRadius: 3,
+    padding: '10px 14px',
+    color: '#C9A84C',
+    fontSize: 12.5,
+    lineHeight: 1.45,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   link: {
     color: '#C9A84C',

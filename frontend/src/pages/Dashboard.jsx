@@ -5,12 +5,14 @@ import FileRenamer from '../components/FileRenamer'
 import BatchRenamer from '../components/BatchRenamer'
 import CaseTracker from '../components/CaseTracker'
 import BillingPanel from '../components/BillingPanel'
+import AccountPanel from '../components/AccountPanel'
 
 export default function Dashboard({ user, onLogout }) {
   const [selectedProvider, setSelectedProvider] = useState(null)
   const [refreshTrigger, setRefreshTrigger]     = useState(0)
   const [mode, setMode]                         = useState('single') // 'single' | 'batch' | 'cases'
   const [billingOpen, setBillingOpen]           = useState(false)
+  const [accountOpen, setAccountOpen]           = useState(false)
   const [renamerInitialFile, setRenamerInitialFile] = useState(null)
 
   const handleRenameSuccess = () => setRefreshTrigger(prev => prev + 1)
@@ -55,7 +57,9 @@ export default function Dashboard({ user, onLogout }) {
         </div>
 
         <div style={styles.topbarRight}>
-          <span style={styles.welcome}>👤 {user.name}</span>
+          <span style={styles.welcome} onClick={() => setAccountOpen(true)} title="Account settings">
+            👤 {user.name}{user.role === 'admin' ? ' ▾' : ''}
+          </span>
           <button style={styles.logout} onClick={onLogout}>Log Out</button>
         </div>
       </div>
@@ -66,6 +70,10 @@ export default function Dashboard({ user, onLogout }) {
           onClose={() => setBillingOpen(false)}
           onSendToRenamer={handleSendToRenamer}
         />
+      )}
+
+      {accountOpen && (
+        <AccountPanel user={user} onClose={() => setAccountOpen(false)} />
       )}
 
       {mode === 'single' ? (
@@ -139,7 +147,7 @@ const styles = {
     paddingLeft: 14,
   },
   topbarRight: { display: 'flex', alignItems: 'center', gap: 12 },
-  welcome:     { color: '#8B95A1', fontSize: 13 },
+  welcome:     { color: '#8B95A1', fontSize: 13, cursor: 'pointer' },
   logout: {
     padding: '5px 14px',
     borderRadius: 3,
