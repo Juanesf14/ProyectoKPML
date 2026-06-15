@@ -59,6 +59,7 @@ router.post('/', async (req, res) => {
     // return them so the UI can pre-fill DOS / update date even with no providers.
     return res.json({
       suggestion: null,
+      detectedEntity: result.detectedEntity,
       reason: 'No providers registered',
       dates: result.dates,
       flags: result.flags,

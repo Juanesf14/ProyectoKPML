@@ -139,6 +139,84 @@ const headerMatch = (text, providers) => {
   }
 }
 
+// ── Open extraction ───────────────────────────────────────────────────────────
+// Detect the entity name FROM the document itself, independent of the provider DB.
+// This runs first; the DB is then only used to map the detected name to a
+// registered provider (see matchProviderByName). This lets the app surface a
+// provider even when the CSV/list is empty or the entity isn't registered yet.
+
+// Words that signal an organisation/facility name on a letterhead or label line.
+const ENTITY_KEYWORDS = /\b(hospital|health|medical|clinic|cente?r|orthopa?edics?|radiolog|imaging|emergency|urgent|surgical|surgery|physicians?|associates|group|care|rehabilitation|rehab|diagnostics?|laborator|labs?|pharmacy|anesthesia|pathology|cardiology|neurology|wellness|institute|university|spine|injury|chiropractic|llc|inc|pllc|corp)\b/i
+
+// Lines that are clearly NOT the entity (document headers, patient/account info, addresses).
+const ENTITY_REJECT = /\b(statement|invoice|account|patient|date of service|fictional|fictitious|remit to|guarantor|claim|member|policy|insured|page \d|balance|total)\b/i
+const ADDRESS_RE = /(\b\d{1,6}\s+\w+\s+(st|street|ave|avenue|rd|road|blvd|dr|drive|lane|ln|suite|ste|way|pkwy|hwy)\b|p\.?o\.?\s*box|\b\d{5}(-\d{4})?\b)/i
+
+const cleanEntity = (s) => s.replace(/\s{2,}/g, ' ').replace(/^[\s\-:]+|[\s,;:.\-]+$/g, '').trim()
+
+/**
+ * Open extraction of the billing/treating entity name from the document.
+ * 1. Explicit label ("Provider:", "Facility:", "Bill From:", ...)
+ * 2. Letterhead — the first lines, picking the strongest organisation-looking one
+ * Returns { name, source, confidence } or null. DB-independent.
+ */
+const extractEntityName = (text) => {
+  const labeled = /(?:^|\n)[ \t]*(?:billing\s+provider|treating\s+provider|provider\s+name|provider|facility|bill\s+from|remit\s+to)\s*[:\-][ \t]*([^\n]+)/i.exec(text)
+  if (labeled) {
+    const v = cleanEntity(labeled[1])
+    if (v.length >= 3 && v.length <= 70 && !ENTITY_REJECT.test(v) && /[A-Za-z]{2,}/.test(v))
+      return { name: v, source: 'labeled', confidence: 0.95 }
+  }
+
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 10)
+  let best = null
+  lines.forEach((line, idx) => {
+    if (line.length < 4 || line.length > 70) return
+    if (ENTITY_REJECT.test(line) || ADDRESS_RE.test(line)) return
+    if (!ENTITY_KEYWORDS.test(line)) return
+    if (!/[A-Za-z]{2,}/.test(line)) return
+    // Earlier lines score higher (letterhead is at the top); prefer lines with capitals.
+    const score = (10 - idx) + (/[A-Z]/.test(line) ? 1 : 0)
+    if (!best || score > best.score) best = { name: cleanEntity(line), score }
+  })
+  if (best) return { name: best.name, source: 'header', confidence: 0.8 }
+
+  return null
+}
+
+/**
+ * Maps an already-extracted entity name to a REGISTERED provider in the DB.
+ * Token-coverage first (all of the provider's distinctive words appear in the
+ * detected name), fuzzy as fallback. Returns a suggestion or null.
+ */
+const matchProviderByName = (name, providers) => {
+  if (!name || !providers.length) return null
+  const nameTokens = new Set(tokenize(name))
+  if (nameTokens.size === 0) return null
+
+  let best = null
+  for (const p of providers) {
+    if (isGenericName(p.name)) continue
+    const pTokens = tokenize(p.name)
+    if (pTokens.length === 0) continue
+    if (!pTokens.every(t => nameTokens.has(t))) continue
+    if (!pTokens.some(t => !GENERIC_NAMES.has(t))) continue
+    if (!best || pTokens.length > best.tokens ||
+        (pTokens.length === best.tokens && p.name.length > best.p.name.length)) {
+      best = { p, tokens: pTokens.length }
+    }
+  }
+  if (best) return { provider_id: best.p.id, name: best.p.name, confidence: 0.92, method: 'name-match' }
+
+  const fuse = new Fuse(providers.filter(p => !isGenericName(p.name)),
+    { keys: ['name'], threshold: 0.4, includeScore: true, ignoreLocation: true })
+  const r = fuse.search(name)[0]
+  if (r && r.score <= 0.4)
+    return { provider_id: r.item.id, name: r.item.name, confidence: +(1 - r.score).toFixed(2), method: 'name-fuzzy' }
+
+  return null
+}
+
 /**
  * Returns the provider whose name appears most often in the document (exact string match).
  * Ambulance providers are penalised (×0.6) so they lose tie-breakers against hospitals
@@ -371,19 +449,23 @@ const analyzeDocument = async (filePath, providers) => {
     const dates = extractDates(text)
     const flags = detectFlags(text)
 
-    const labeled = labeledProviderMatch(text, providers)
-    if (labeled) return { suggestion: labeled, dates, flags, usedOcr, extractedText: text }
+    // 1) Open extraction — detect the entity name from the document (DB-independent).
+    const detectedEntity = extractEntityName(text)
 
-    const header = headerMatch(text, providers)
-    if (header) return { suggestion: header, dates, flags, usedOcr, extractedText: text }
+    // 2) Map the detected name to a registered provider, if one exists.
+    let suggestion = matchProviderByName(detectedEntity?.name, providers)
 
-    const exact = exactMatch(text, providers)
-    if (exact) return { suggestion: exact, dates, flags, usedOcr, extractedText: text }
+    // 3) Fallback to whole-document DB matching for docs without a clear
+    //    header/label (covers the previous behaviour).
+    if (!suggestion) {
+      suggestion =
+        labeledProviderMatch(text, providers) ||
+        headerMatch(text, providers) ||
+        exactMatch(text, providers) ||
+        fuzzyMatch(text, providers)
+    }
 
-    const fuzzy = fuzzyMatch(text, providers)
-    if (fuzzy) return { suggestion: fuzzy, dates, flags, usedOcr, extractedText: text }
-
-    return { suggestion: null, dates, flags, usedOcr, reason: 'No match found', extractedText: text }
+    return { suggestion, detectedEntity, dates, flags, usedOcr, extractedText: text }
 
   } catch (err) {
     console.error('Doc analyzer error:', err.message)

@@ -18,6 +18,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
   const [newName, setNewName] = useState('')
   const [entityName, setEntityName] = useState('')
   const [suggestedProvider, setSuggestedProvider] = useState(null)
+  const [detectedEntity, setDetectedEntity] = useState(null)
   const [autoFilledFields, setAutoFilledFields] = useState({})
   const [flags, setFlags] = useState(null)
   const [sessionId, setSessionId] = useState(null)
@@ -50,6 +51,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
     if (!initialFile) return
     setCurrentFile(initialFile)
     setSuggestedProvider(null)
+    setDetectedEntity(null)
     setAutoFilledFields({})
     setFlags(null)
     setSessionId(null)
@@ -137,10 +139,17 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
 
       if (data.sessionId) setSessionId(data.sessionId)
 
+      // Open extraction: the document's own entity name (DB-independent).
+      if (data.detectedEntity) setDetectedEntity(data.detectedEntity)
+
       if (data.suggestion) {
+        // Detected name mapped to a REGISTERED provider — use the canonical name.
         const { provider_id, name, confidence, method } = data.suggestion
         setEntityName(name)
         setSuggestedProvider({ provider_id, name, confidence, method, usedOcr: data.usedOcr })
+      } else if (data.detectedEntity?.name) {
+        // Detected but not registered — still fill the field with the raw name.
+        setEntityName(data.detectedEntity.name)
       }
 
       if (data.dates) {
@@ -171,6 +180,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
 
     setCurrentFile(file)
     setSuggestedProvider(null)
+    setDetectedEntity(null)
     setAutoFilledFields({})
     setFlags(null)
     setSessionId(null)
@@ -236,6 +246,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
       setNewName('')
       setEntityName('')
       setSuggestedProvider(null)
+      setDetectedEntity(null)
       setAutoFilledFields({})
       setFlags(null)
       setSessionId(null)
@@ -258,6 +269,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
     setNewName('')
     setEntityName('')
     setSuggestedProvider(null)
+    setDetectedEntity(null)
     setAutoFilledFields({})
     setFlags(null)
     setSessionId(null)
@@ -319,6 +331,13 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
             {Math.round(suggestedProvider.confidence * 100)}% — {suggestedProvider.method}
             {suggestedProvider.usedOcr && <span style={styles.ocrBadge}>OCR</span>}
           </span>
+        </div>
+      )}
+
+      {!suggestedProvider && detectedEntity?.name && (
+        <div style={styles.detected}>
+          <span>🔎 Detected: <strong>{detectedEntity.name}</strong></span>
+          <span style={styles.detectedHint}>Not in your provider list — edit or add it</span>
         </div>
       )}
 
@@ -531,6 +550,21 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: 4,
+  },
+  detected: {
+    background: 'rgba(123,179,217,0.08)',
+    border: '1px solid rgba(123,179,217,0.35)',
+    borderRadius: 3,
+    padding: '8px 12px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    fontSize: 12,
+    color: '#7BB3D9',
+  },
+  detectedHint: {
+    color: '#8B95A1',
+    fontSize: 11,
   },
   ocrBadge: {
     display: 'inline-block',
