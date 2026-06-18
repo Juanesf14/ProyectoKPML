@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import api from '../services/api'
 import BillingCalculator from './BillingCalculator'
 
@@ -15,7 +15,11 @@ import BillingCalculator from './BillingCalculator'
  */
 export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
   const [file, setFile]             = useState(null)
-  const [previewData, setPreviewData] = useState(null) // { base64, mimeType } | 'loading' | null
+  // { url, mimeType } where url is a blob: URL | 'loading' | null.
+  // We use a blob URL (not a base64 data: URL) so multi-page / large PDFs
+  // render: Chromium silently refuses to navigate an iframe to a data: URL
+  // bigger than ~2 MB, which left scanned bills showing a blank page.
+  const [previewData, setPreviewData] = useState(null)
   const [zoom, setZoom]             = useState(1)
 
   // Analysis state
@@ -57,6 +61,21 @@ export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
     setMlUsed(data.mlUsed === true)
   }
 
+  // Decodes a base64 string into a blob: URL the iframe can render at any size.
+  const base64ToBlobUrl = (base64, mimeType) => {
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return URL.createObjectURL(new Blob([bytes], { type: mimeType }))
+  }
+
+  // Release the active preview's blob URL when it's replaced or the modal
+  // unmounts, so we don't leak object URLs between files.
+  useEffect(() => {
+    const url = previewData && previewData !== 'loading' ? previewData.url : null
+    return () => { if (url) URL.revokeObjectURL(url) }
+  }, [previewData])
+
   // ── File selection ─────────────────────────────────────────────────────────
   const handleSelectFile = async () => {
     const selected = await window.electronAPI.selectFile()
@@ -65,11 +84,13 @@ export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
     setFile(selected)
     resetAnalysisState()
 
-    // Load preview in background
+    // Load preview in background (the cleanup effect revokes the previous URL)
     setPreviewData('loading')
     try {
       const result = await window.electronAPI.readFileBase64(selected.path)
-      setPreviewData(result || null)
+      setPreviewData(
+        result ? { url: base64ToBlobUrl(result.base64, result.mimeType), mimeType: result.mimeType } : null
+      )
     } catch {
       setPreviewData(null)
     }
@@ -175,7 +196,7 @@ export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
   const resetZoom = () => setZoom(1)
 
   const pdfSrc = previewData && previewData !== 'loading'
-    ? `data:${previewData.mimeType};base64,${previewData.base64}#zoom=${Math.round(zoom * 100)}`
+    ? `${previewData.url}#zoom=${Math.round(zoom * 100)}`
     : null
 
   // ── Render ─────────────────────────────────────────────────────────────────
