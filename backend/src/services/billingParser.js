@@ -15,8 +15,15 @@ let _mlExtract = null
 const getMlExtract = () => {
   if (_mlExtract === null) {
     try {
-      const inferPath = path.resolve(__dirname, '../../../ml/models/infer.js')
-      _mlExtract = fs.existsSync(inferPath) ? require(inferPath).extractBillingFields : false
+      // Dev: model lives in the repo at ml/models/. Packaged: electron-builder
+      // copies it to Resources/ml-models/ (see extraResources in package.json).
+      const candidates = [
+        path.resolve(__dirname, '../../../ml/models/infer.js'),
+        process.resourcesPath && path.join(process.resourcesPath, 'ml-models', 'infer.js'),
+      ].filter(Boolean)
+
+      const inferPath = candidates.find(p => fs.existsSync(p))
+      _mlExtract = inferPath ? require(inferPath).extractBillingFields : false
     } catch {
       _mlExtract = false
     }
