@@ -17,6 +17,12 @@ router.use(authMiddleware)
  */
 const GEMINI_THRESHOLD = 0.35
 
+// File types the analyzer is allowed to open. Anything else is rejected so the
+// endpoint can't be used to read arbitrary files off the host.
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.webp',
+])
+
 /**
  * POST /api/analyze
  *
@@ -45,6 +51,12 @@ router.post('/', async (req, res) => {
   // Reject relative paths — the renderer must always send an absolute OS path.
   if (!path.isAbsolute(filePath))
     return res.status(400).json({ error: 'Invalid file path' })
+
+  // Restrict reads to the document/image types the analyzer supports. Without
+  // this an authenticated user could point filePath at any file on the host
+  // (e.g. /etc/passwd, SSH keys) and have its contents extracted.
+  if (!ALLOWED_EXTENSIONS.has(path.extname(filePath).toLowerCase()))
+    return res.status(400).json({ error: 'Unsupported file type' })
 
   const providers = db.prepare('SELECT id, name FROM providers').all()
 

@@ -1,9 +1,12 @@
 const express = require('express')
 const router  = express.Router()
 const db      = require('../db/schema')
+const { authMiddleware } = require('../middleware/auth')
 
-// Cases routes are intentionally unauthenticated — the case tracker is used
-// within the trusted local Electron app where network exposure is minimal.
+// Case records contain claimant PHI (names, date of loss, notes), so every
+// endpoint requires a valid session token. The frontend api client attaches the
+// bearer token automatically on all requests.
+router.use(authMiddleware)
 
 // GET /api/cases — all cases, newest first.
 router.get('/', (req, res) => {

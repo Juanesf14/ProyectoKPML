@@ -12,6 +12,12 @@ router.use(authMiddleware)
 // Confidence below this threshold triggers the AI banner / Gemini escalation
 const AI_THRESHOLD = 0.35
 
+// File types the billing parser is allowed to open. Anything else is rejected so
+// the endpoint can't be used to read arbitrary files off the host.
+const ALLOWED_EXTENSIONS = new Set([
+  '.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.tif', '.bmp', '.webp',
+])
+
 /**
  * POST /api/billing/analyze
  *
@@ -24,6 +30,8 @@ router.post('/analyze', async (req, res) => {
   const { filePath, allowAI = false, forceMl = false } = req.body
   if (!filePath)                  return res.status(400).json({ error: 'filePath is required' })
   if (!path.isAbsolute(filePath)) return res.status(400).json({ error: 'Invalid file path' })
+  if (!ALLOWED_EXTENSIONS.has(path.extname(filePath).toLowerCase()))
+    return res.status(400).json({ error: 'Unsupported file type' })
 
   const result = await analyzeBillingDocument(filePath, { forceMl })
   const { extractedText, ...responseData } = result

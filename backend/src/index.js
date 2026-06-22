@@ -33,6 +33,8 @@ app.get('/api/document-types', (req, res) => {
   res.json(types)
 })
 
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`)
+// Bind to the loopback interface only. The backend is a private companion to the
+// local Electron app and must never be reachable from other machines on the LAN.
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`Backend running on http://127.0.0.1:${PORT}`)
 })
