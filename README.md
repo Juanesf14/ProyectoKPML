@@ -47,7 +47,7 @@ To retrain the model:
 ```bash
 cd ml/
 python -m venv .venv && source .venv/bin/activate
-pip install transformers datasets torch
+pip install -r requirements.txt
 python scripts/prepare_dataset.py
 python scripts/train.py
 python scripts/export_onnx.py   # outputs models/bill-ner.onnx

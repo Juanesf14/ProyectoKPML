@@ -50,16 +50,16 @@
   }
 }
 
+html,
 body {
   margin: 0;
+  /* App navy background so the window never flashes white (e.g. on Windows in
+     light color-scheme) before/around the React app renders. */
+  background: #0D1B2A;
 }
 
 #root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
+  width: 100%;
   min-height: 100svh;
   display: flex;
   flex-direction: column;

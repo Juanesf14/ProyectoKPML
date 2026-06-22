@@ -18,8 +18,8 @@
     "frontend"
   ],
   "build": {
-    "appId": "com.renamerjf.app",
-    "productName": "RenamerJF",
+    "appId": "com.renamerjf.ml.app",
+    "productName": "RenamerJF ML",
     "copyright": "Copyright © 2026 RenamerJF",
     "directories": {
       "output": "dist-electron",
@@ -35,6 +35,26 @@
       {
         "from": "backend/renamerjf.db",
         "to": "renamerjf.db"
+      },
+      {
+        "from": "ml/models/infer.js",
+        "to": "ml-models/infer.js"
+      },
+      {
+        "from": "ml/models/bill-ner.onnx",
+        "to": "ml-models/bill-ner.onnx"
+      },
+      {
+        "from": "ml/models/ner_config.json",
+        "to": "ml-models/ner_config.json"
+      },
+      {
+        "from": "ml/models/tokenizer",
+        "to": "ml-models/tokenizer"
+      },
+      {
+        "from": "ml/node_modules",
+        "to": "ml-models/node_modules"
       }
     ],
     "mac": {

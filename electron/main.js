@@ -5,6 +5,12 @@ const crypto = require('crypto')
 
 const isProd = app.isPackaged
 
+// Distinct app name so this ML build keeps its own userData directory, separate
+// from the standard RenamerJF build. Must run before app 'ready'. Critical on
+// Windows/macOS case-insensitive filesystems where "renamerjf" and "RenamerJF"
+// would otherwise resolve to the same folder and the two apps would share data.
+app.setName('RenamerJF ML')
+
 /**
  * Points DB_PATH to the OS user-data directory so the database survives
  * app updates (which would otherwise wipe the app bundle's working dir).
@@ -57,6 +63,13 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    minWidth: 1024,
+    minHeight: 700,
+    backgroundColor: '#0D1B2A',  // matches the app so no white flash on load
+    // Hide the native menu bar (File/Edit/View/...). On macOS the menu lives in
+    // the system bar; on Windows/Linux it would otherwise render inside the
+    // window. autoHideMenuBar keeps it out of the way (Alt still reveals it).
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,  // renderer cannot access Node APIs directly

@@ -58,7 +58,7 @@ export default function Login({ onLogin }) {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <h1 style={styles.title}>K&P · RenamerJF</h1>
+        <h1 style={styles.title}>KP · RenamerJF</h1>
         <p style={styles.subtitle}>Medical Records Manager</p>
 
         {isBootstrap && (

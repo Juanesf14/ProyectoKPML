@@ -27,7 +27,7 @@ export default function Dashboard({ user, onLogout }) {
     <div style={styles.container}>
       <div style={styles.topbar}>
         <div style={styles.topbarLeft}>
-          <span style={styles.logo}>K&P · RenamerJF</span>
+          <span style={styles.logo}>KP · RenamerJF</span>
           <span style={styles.appName}>Medical Records Manager</span>
 
           <div style={styles.modeToggle}>

@@ -1,0 +1,19 @@
+# Dependencias de Python para el pipeline de entrenamiento del modelo NER (DistilBERT).
+# Solo se necesitan para RE-ENTRENAR / re-exportar el modelo, NO para ejecutar la app
+# (la inferencia en producción usa onnxruntime-node, sin Python).
+#
+# Instalación:
+#   cd ml/
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# Versiones fijadas según el entorno verificado (Python 3.9.6).
+
+transformers==4.57.6
+datasets==4.5.0
+torch==2.8.0
+accelerate==1.10.1
+tokenizers==0.22.2
+safetensors==0.7.0
+onnx==1.19.1
+numpy==2.0.2
