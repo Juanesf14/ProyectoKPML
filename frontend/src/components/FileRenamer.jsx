@@ -66,6 +66,23 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
     buildName()
   }, [form, entityName])
 
+  // Returns today's date as an ISO string (YYYY-MM-DD) in local time.
+  const todayISO = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+
+  // "Updated as of" defaults to today for doc types that require it (B/HL/PIP)
+  // when the document didn't provide one. Today is the date the user is
+  // reviewing/updating the file, so this unblocks the rename out of the box.
+  // It stays editable, and a value extracted from the document is never overwritten.
+  useEffect(() => {
+    if (['B', 'HL', 'PIP'].includes(form.docType) && !form.updateDate) {
+      setForm(f => ({ ...f, updateDate: todayISO() }))
+      setAutoFilledFields(f => ({ ...f, updateDate: true }))
+    }
+  }, [form.docType])
+
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
 
   // Formats yyyy-mm-dd (from <input type="date">) to MM/DD/YYYY for file names.
@@ -336,7 +353,14 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
 
       {!suggestedProvider && detectedEntity?.name && (
         <div style={styles.detected}>
-          <span>🔎 Detected: <strong>{detectedEntity.name}</strong></span>
+          <span style={styles.detectedRow}>
+            <span>🔎 Detected: <strong>{detectedEntity.name}</strong></span>
+            {typeof detectedEntity.confidence === 'number' && (
+              <span style={styles.readConfidence}>
+                {Math.round(detectedEntity.confidence * 100)}% reading
+              </span>
+            )}
+          </span>
           <span style={styles.detectedHint}>Not in your provider list — edit or add it</span>
         </div>
       )}
@@ -449,7 +473,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
 
       {sessionId && (
         <button style={styles.chatBtn} onClick={() => setChatOpen(true)}>
-          💬 Ask AI about this document
+          💬 Ask about this document
         </button>
       )}
 
@@ -561,6 +585,17 @@ const styles = {
     gap: 2,
     fontSize: 12,
     color: '#7BB3D9',
+  },
+  detectedRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  readConfidence: {
+    color: '#8B95A1',
+    fontSize: 11,
+    whiteSpace: 'nowrap',
   },
   detectedHint: {
     color: '#8B95A1',

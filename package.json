@@ -86,6 +86,11 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RenamerJF ML",
+      "installerIcon": "build-assets/icon.ico",
+      "uninstallerIcon": "build-assets/icon.ico",
+      "installerHeaderIcon": "build-assets/icon.ico",
       "installerLanguages": [
         "en_US"
       ]

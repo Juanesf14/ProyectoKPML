@@ -5,6 +5,9 @@ export default function ChatPanel({ sessionId, documentName, onClose }) {
   const [messages, setMessages] = useState([])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
+  // Gemini is opt-in: no question is sent to the AI until the user explicitly
+  // activates it from the header (mirrors the low-confidence consent flow).
+  const [geminiOn, setGeminiOn] = useState(false)
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -12,7 +15,7 @@ export default function ChatPanel({ sessionId, documentName, onClose }) {
   }, [messages, loading])
 
   const send = async () => {
-    if (!input.trim() || loading) return
+    if (!input.trim() || loading || !geminiOn) return
 
     const userMsg    = { role: 'user', content: input.trim() }
     const newHistory = [...messages, userMsg]
@@ -44,14 +47,34 @@ export default function ChatPanel({ sessionId, documentName, onClose }) {
         {/* Header */}
         <div style={styles.header}>
           <div>
-            <div style={styles.headerTitle}>AI Document Chat</div>
+            <div style={styles.headerTitle}>Document Chat</div>
             {documentName && (
               <div style={styles.headerSub} title={documentName}>
                 {documentName.length > 35 ? documentName.slice(0, 35) + '…' : documentName}
               </div>
             )}
           </div>
-          <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          <div style={styles.headerActions}>
+            {geminiOn ? (
+              <span style={styles.geminiOn} title="Gemini AI is active for this chat">✨ Gemini on</span>
+            ) : (
+              <button
+                style={styles.geminiBtn}
+                onClick={() => setGeminiOn(true)}
+                title="Activate Gemini AI to answer questions about this document"
+              >
+                ✨ Enable Gemini
+              </button>
+            )}
+            <button onClick={onClose} style={styles.closeBtn}>✕</button>
+          </div>
+        </div>
+
+        {/* Privacy / PII notice — this chat sends document text to a third-party AI */}
+        <div style={styles.privacyBanner}>
+          ⚠ Privacy: your questions and this document’s text are sent to Google Gemini
+          (a third-party AI) to generate answers. Avoid including unnecessary personal or
+          health information (PII/PHI).
         </div>
 
         {/* Messages */}
@@ -59,7 +82,11 @@ export default function ChatPanel({ sessionId, documentName, onClose }) {
           {messages.length === 0 && (
             <div style={styles.emptyState}>
               <div style={styles.emptyIcon}>🤖</div>
-              <div style={styles.emptyText}>Ask anything about this medical record</div>
+              <div style={styles.emptyText}>
+                {geminiOn
+                  ? 'Ask anything about this medical record'
+                  : 'Enable Gemini (top right) to ask about this medical record'}
+              </div>
               <div style={styles.suggestions}>
                 {[
                   'What is the total amount billed?',
@@ -104,14 +131,15 @@ export default function ChatPanel({ sessionId, documentName, onClose }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about this document… (Enter to send)"
+            placeholder={geminiOn ? 'Ask about this document… (Enter to send)' : 'Enable Gemini above to ask questions…'}
             rows={2}
             disabled={loading}
           />
           <button
-            style={{ ...styles.sendBtn, opacity: !input.trim() || loading ? 0.4 : 1 }}
+            style={{ ...styles.sendBtn, opacity: !input.trim() || loading || !geminiOn ? 0.4 : 1 }}
             onClick={send}
-            disabled={!input.trim() || loading}
+            disabled={!input.trim() || loading || !geminiOn}
+            title={geminiOn ? 'Send your question' : 'Enable Gemini first'}
           >
             ↑
           </button>
@@ -173,6 +201,15 @@ const styles = {
     cursor: 'pointer',
     padding: '0 4px',
     lineHeight: 1,
+  },
+  privacyBanner: {
+    background: 'rgba(246,173,85,0.10)',
+    borderBottom: '1px solid rgba(246,173,85,0.35)',
+    color: '#f6ad55',
+    fontSize: 11,
+    lineHeight: 1.5,
+    padding: '8px 14px',
+    flexShrink: 0,
   },
   messages: {
     flex: 1,
@@ -279,5 +316,33 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  geminiBtn: {
+    background: 'rgba(183,148,244,0.12)',
+    border: '1px solid #b794f4',
+    borderRadius: 4,
+    color: '#d6bcfa',
+    fontSize: 11,
+    fontWeight: 700,
+    padding: '5px 10px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.03em',
+  },
+  geminiOn: {
+    background: 'rgba(104,211,145,0.12)',
+    border: '1px solid #68d391',
+    borderRadius: 4,
+    color: '#68d391',
+    fontSize: 11,
+    fontWeight: 700,
+    padding: '5px 10px',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.03em',
   },
 }

@@ -40,9 +40,12 @@ export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  // Converts backend claim objects to editable frontend state
+  // Converts backend claim objects to editable frontend state.
+  // _id is a stable client-side key so manually added/removed rows render
+  // correctly even when claimId is empty or duplicated.
   const normalizeClaimsForState = (raw) =>
     (raw || []).map(c => ({
+      _id:         crypto.randomUUID(),
       claimId:     c.claimId,
       charge:      c.charge      ?? 0,
       adjustments: c.adjustments ?? 0,
@@ -152,6 +155,18 @@ export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
   // ── Claim editing ──────────────────────────────────────────────────────────
   const handleClaimChange = (idx, field, value) => {
     setClaims(prev => prev.map((c, i) => i === idx ? { ...c, [field]: value } : c))
+  }
+
+  // Adds an empty editable row so the user can enter a claim the parser missed.
+  const handleAddClaim = () => {
+    setClaims(prev => [
+      ...prev,
+      { _id: crypto.randomUUID(), claimId: '', charge: 0, adjustments: 0, pipPaid: 0, healthPaid: 0, patientPaid: 0 },
+    ])
+  }
+
+  const handleRemoveClaim = (idx) => {
+    setClaims(prev => prev.filter((_, i) => i !== idx))
   }
 
   // ── Save ───────────────────────────────────────────────────────────────────
@@ -301,6 +316,8 @@ export default function BillingPanel({ caseData, onClose, onSendToRenamer }) {
                 mlUsed={mlUsed}
                 mlLoading={mlLoading}
                 onClaimChange={handleClaimChange}
+                onAddClaim={handleAddClaim}
+                onRemoveClaim={handleRemoveClaim}
                 onUseAI={handleUseAI}
                 onForceMl={handleForceMl}
                 onDismissBanner={() => setBannerDismissed(true)}

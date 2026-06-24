@@ -16,6 +16,16 @@ const moneyInput = (value, onChange) => (
   />
 )
 
+const claimIdInput = (value, onChange) => (
+  <input
+    type="text"
+    value={value}
+    onChange={onChange}
+    placeholder="Claim ID"
+    style={s.claimInput}
+  />
+)
+
 // ── Soft info notice (confidence ≥ 0.60 but has issues) ───────────────────────
 function InfoNotice({ issues }) {
   if (!issues.length) return null
@@ -67,6 +77,8 @@ export default function BillingCalculator({
   mlUsed,
   mlLoading,
   onClaimChange,
+  onAddClaim,
+  onRemoveClaim,
   onUseAI,
   onForceMl,
   onDismissBanner,
@@ -124,6 +136,7 @@ export default function BillingCalculator({
               ? 'The local parser found no claims. Use AI to extract the data.'
               : 'Verify the PDF is a billing document from Athena or a standard charges summary.'}
           </p>
+          <button style={s.addRowBtn} onClick={onAddClaim}>+ Add row manually</button>
         </div>
       </div>
     )
@@ -180,8 +193,8 @@ export default function BillingCalculator({
         <table style={s.table}>
           <thead>
             <tr>
-              {['Claim ID', 'Charge', 'Adj.', 'PIP', 'Health Ins.', 'Patient', 'Lien'].map(h => (
-                <th key={h} style={s.th}>{h}</th>
+              {['Claim ID', 'Charge', 'Adj.', 'PIP', 'Health Ins.', 'Patient', 'Lien', ''].map((h, i) => (
+                <th key={i} style={s.th}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -197,10 +210,8 @@ export default function BillingCalculator({
               const lienColor = lien > 0.01 ? '#fc8181' : lien < -0.01 ? '#f6ad55' : '#68d391'
               const set = (field) => (e) => onClaimChange(idx, field, e.target.value)
               return (
-                <tr key={claim.claimId} style={{ background: idx % 2 === 0 ? '#1e2a3a' : '#192334' }}>
-                  <td style={{ ...s.td, color: '#63b3ed', fontFamily: 'monospace', fontWeight: 600 }}>
-                    {claim.claimId}
-                  </td>
+                <tr key={claim._id ?? idx} style={{ background: idx % 2 === 0 ? '#1e2a3a' : '#192334' }}>
+                  <td style={s.td}>{claimIdInput(claim.claimId ?? '', set('claimId'))}</td>
                   <td style={s.td}>{moneyInput(claim.charge,      set('charge'))}</td>
                   <td style={s.td}>{moneyInput(claim.adjustments, set('adjustments'))}</td>
                   <td style={s.td}>{moneyInput(claim.pipPaid,     set('pipPaid'))}</td>
@@ -209,12 +220,24 @@ export default function BillingCalculator({
                   <td style={{ ...s.td, color: lienColor, fontWeight: 700, fontFamily: 'monospace' }}>
                     ${fmt(lien)}
                   </td>
+                  <td style={s.td}>
+                    <button
+                      style={s.removeBtn}
+                      title="Remove this row"
+                      onClick={() => onRemoveClaim(idx)}
+                    >
+                      ✕
+                    </button>
+                  </td>
                 </tr>
               )
             })}
           </tbody>
         </table>
       </div>
+
+      {/* Add a manual row for a claim the parser missed */}
+      <button style={s.addRowBtn} onClick={onAddClaim}>+ Add row</button>
 
       {/* Totals summary */}
       {totals && (
@@ -367,6 +390,42 @@ const s = {
     outline: 'none',
     fontFamily: 'monospace',
     boxSizing: 'border-box',
+  },
+  claimInput: {
+    width: 90,
+    padding: '4px 6px',
+    borderRadius: 4,
+    border: '1px solid #2d3748',
+    background: '#243447',
+    color: '#63b3ed',
+    fontSize: 12,
+    fontWeight: 600,
+    outline: 'none',
+    fontFamily: 'monospace',
+    boxSizing: 'border-box',
+  },
+  removeBtn: {
+    border: 'none',
+    background: 'transparent',
+    color: '#fc8181',
+    fontSize: 14,
+    lineHeight: 1,
+    cursor: 'pointer',
+    padding: '2px 6px',
+    borderRadius: 4,
+  },
+  addRowBtn: {
+    alignSelf: 'flex-start',
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px dashed #4a5568',
+    background: 'transparent',
+    color: '#90cdf4',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    flexShrink: 0,
+    marginTop: 4,
   },
 
   // Totals

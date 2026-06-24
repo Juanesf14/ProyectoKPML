@@ -39,6 +39,18 @@ setInterval(() => {
  *
  * Note: Gemini uses role 'model' where the OpenAI convention uses 'assistant',
  * and passes content as parts[] arrays instead of plain strings.
+ *
+ * ── PRIVACY / PII ────────────────────────────────────────────────────────────
+ * This function sends the document text (which may contain PII/PHI) and the
+ * user's questions to Google Gemini, a third-party service. The UI shows an
+ * explicit privacy notice (see ChatPanel.jsx) before any message is sent.
+ *
+ * ── PLANNED MIGRATION ────────────────────────────────────────────────────────
+ * The intended long-term provider for this chat is **Lois (Filevine's AI)**,
+ * which keeps data within the firm's case-management platform and avoids sending
+ * PHI to Google. When that integration is available, replace the Gemini call
+ * below with the Lois API while keeping this same interface
+ * (chatWithDocument(sessionId, messages) -> reply string).
  */
 const chatWithDocument = async (sessionId, messages) => {
   const session = getSession(sessionId)
