@@ -13,4 +13,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
    * Returns null if the path is invalid or the file does not exist.
    */
   readFileBase64:  (filePath) => ipcRenderer.invoke('read-file-base64', filePath),
+
+  // Admin-only database backup/restore (manual). The renderer gates these to
+  // admins; the dialogs and file I/O run in the main process.
+  backupDatabase:  ()         => ipcRenderer.invoke('backup-database'),
+  restoreDatabase: ()         => ipcRenderer.invoke('restore-database'),
 })

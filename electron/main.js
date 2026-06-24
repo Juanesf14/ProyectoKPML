@@ -123,6 +123,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  applyPendingRestore()
   startBackend()
   // In production, give the backend time to bind its port before the window loads.
   const delay = isProd ? 1500 : 0
@@ -202,3 +203,100 @@ ipcMain.handle('read-file-base64', (_, filePath) => {
   const buffer   = fs.readFileSync(filePath)
   return { base64: buffer.toString('base64'), mimeType }
 })
+
+// Resolves the live database file path (same logic as the backend's schema.js).
+function getDbPath() {
+  return process.env.DB_PATH || path.join(app.getPath('userData'), 'renamerjf.db')
+}
+
+// Exports a consistent, hot copy of the database to a user-chosen location.
+// Uses better-sqlite3's online backup so an in-flight write can't corrupt the copy.
+ipcMain.handle('backup-database', async () => {
+  const dbPath = getDbPath()
+  if (!fs.existsSync(dbPath)) return { success: false, error: 'Database not found' }
+
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Export database backup',
+    defaultPath: `renamerjf-backup-${stamp}.db`,
+    filters: [{ name: 'SQLite database', extensions: ['db'] }],
+  })
+  if (canceled || !filePath) return { success: false, canceled: true }
+
+  try {
+    const Database = require('better-sqlite3')
+    const src = new Database(dbPath, { readonly: true })
+    await src.backup(filePath)
+    src.close()
+    return { success: true, path: filePath }
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+})
+
+// Restores the database from a backup file chosen by the user. Validates that
+// the file is a usable SQLite DB with the expected schema, keeps a safety copy
+// of the current DB, swaps it in, then relaunches the app.
+ipcMain.handle('restore-database', async () => {
+  const dbPath = getDbPath()
+
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Restore database from backup',
+    properties: ['openFile'],
+    filters: [{ name: 'SQLite database', extensions: ['db'] }],
+  })
+  if (canceled || !filePaths?.[0]) return { success: false, canceled: true }
+  const source = filePaths[0]
+
+  // Validate the chosen file before overwriting anything.
+  try {
+    const Database = require('better-sqlite3')
+    const test = new Database(source, { readonly: true })
+    const ok = test.prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+    ).get()
+    test.close()
+    if (!ok) return { success: false, error: 'Not a valid RenamerJF database (missing users table)' }
+  } catch {
+    return { success: false, error: 'The selected file is not a valid SQLite database' }
+  }
+
+  const confirm = await dialog.showMessageBox({
+    type: 'warning',
+    buttons: ['Restore and restart', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'Restore database',
+    message: 'This will replace all current data with the backup.',
+    detail: 'A safety copy of the current database is kept. The app will restart.',
+  })
+  if (confirm.response !== 0) return { success: false, canceled: true }
+
+  try {
+    // Stage the restore instead of overwriting the live (open) DB file — on
+    // Windows the backend holds it open. applyPendingRestore() swaps it in at
+    // next startup, before the backend opens the database.
+    fs.copyFileSync(source, `${dbPath}.pending`)
+  } catch (err) {
+    return { success: false, error: err.message }
+  }
+
+  app.relaunch()
+  app.exit(0)
+  return { success: true }
+})
+
+// If a restore was staged, swap it in before the backend opens the DB. Keeps a
+// one-shot safety copy of the database that was active just before the restore.
+function applyPendingRestore() {
+  const dbPath  = path.join(app.getPath('userData'), 'renamerjf.db')
+  const pending = `${dbPath}.pending`
+  if (!fs.existsSync(pending)) return
+  try {
+    if (fs.existsSync(dbPath)) fs.copyFileSync(dbPath, `${dbPath}.pre-restore`)
+    fs.renameSync(pending, dbPath)
+    console.log('[restore] applied staged database backup')
+  } catch (err) {
+    console.error('[restore] failed to apply staged backup:', err.message)
+  }
+}

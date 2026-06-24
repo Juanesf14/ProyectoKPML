@@ -6,7 +6,7 @@ import api from '../services/api'
 // create / reset-password / delete actions (local password recovery without email).
 export default function AccountPanel({ user, onClose }) {
   const isAdmin = user.role === 'admin'
-  const [tab, setTab] = useState('password') // 'password' | 'users'
+  const [tab, setTab] = useState('password') // 'password' | 'users' | 'backup'
 
   return (
     <div style={styles.overlay} onClick={onClose}>
@@ -30,11 +30,80 @@ export default function AccountPanel({ user, onClose }) {
             >
               Users
             </button>
+            <button
+              style={tab === 'backup' ? styles.tabActive : styles.tab}
+              onClick={() => setTab('backup')}
+            >
+              Backup
+            </button>
           </div>
         )}
 
-        {tab === 'password' ? <ChangePassword /> : <UserManagement currentUser={user} />}
+        {tab === 'password'
+          ? <ChangePassword />
+          : tab === 'users'
+            ? <UserManagement currentUser={user} />
+            : <BackupRestore />}
       </div>
+    </div>
+  )
+}
+
+// Admin-only manual database backup/restore. Runs through the Electron bridge;
+// shows a clear warning that restore replaces all data and restarts the app.
+function BackupRestore() {
+  const [msg, setMsg]   = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  const api = typeof window !== 'undefined' ? window.electronAPI : null
+
+  const doExport = async () => {
+    if (!api) return
+    setBusy(true); setMsg(null)
+    try {
+      const res = await api.backupDatabase()
+      if (res?.success)        setMsg({ type: 'ok',  text: `Backup saved to ${res.path}` })
+      else if (res?.canceled)  setMsg(null)
+      else                     setMsg({ type: 'err', text: res?.error || 'Backup failed' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const doRestore = async () => {
+    if (!api) return
+    setBusy(true); setMsg(null)
+    try {
+      const res = await api.restoreDatabase()
+      // On success the app relaunches, so this rarely renders.
+      if (res && !res.success && !res.canceled)
+        setMsg({ type: 'err', text: res.error || 'Restore failed' })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!api) {
+    return <div style={styles.errBanner}>Backup is only available in the desktop app.</div>
+  }
+
+  return (
+    <div style={styles.form}>
+      <p style={{ color: '#8B95A1', fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+        Export a copy of the database to keep it safe (e.g. on a USB drive or network folder).
+        Restore replaces all current data with a backup file and restarts the app.
+      </p>
+      {msg && <div style={msg.type === 'ok' ? styles.okBanner : styles.errBanner}>{msg.text}</div>}
+      <button style={styles.button} onClick={doExport} disabled={busy}>
+        {busy ? 'Working…' : 'Export backup'}
+      </button>
+      <button
+        style={{ ...styles.button, background: '#7a3b3b' }}
+        onClick={doRestore}
+        disabled={busy}
+      >
+        Restore from backup…
+      </button>
     </div>
   )
 }
