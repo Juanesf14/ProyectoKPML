@@ -13,6 +13,8 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
     dosEnd: '',
     updateDate: '',
     pipExhausted: 'N',
+    title: '',
+    docDate: '',
   })
   const [currentFile, setCurrentFile] = useState(null)
   const [newName, setNewName] = useState('')
@@ -85,15 +87,22 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
 
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
 
-  // Formats yyyy-mm-dd (from <input type="date">) to MM/DD/YYYY for file names.
+  // Formats yyyy-mm-dd (from <input type="date">) to mm.dd.yy for file names,
+  // per the firm's naming convention. Dots (not slashes) — "/" is invalid in
+  // Windows filenames.
   const formatDate = (dateStr) => {
     if (!dateStr) return ''
     const [y, m, d] = dateStr.split('-')
-    return `${m}/${d}/${y}`
+    return `${m}.${d}.${y.slice(-2)}`
   }
 
+  // Medical document types (category 5) follow fixed templates. Everything else
+  // is a "general document" (category 4): named exactly as titled, preceded by
+  // the agency/company and optionally followed by a date.
+  const MEDICAL_TYPES = ['B', 'MR', 'HL', 'PIP']
+
   const buildName = () => {
-    if (!form.docType || !entityName) {
+    if (!form.docType) {
       setNewName('')
       return
     }
@@ -106,6 +115,23 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
 
     let name = ''
 
+    // ── General documents (category 4) ──────────────────────────────────────
+    if (!MEDICAL_TYPES.includes(form.docType)) {
+      const title = form.title.trim()
+      if (!title) { setNewName(''); return }
+      const datePart = form.docDate ? `-${formatDate(form.docDate)}` : ''
+      // Entity is optional here (e.g. "Tax Returns-Year", "Health Ins Card").
+      name = facility ? `${facility}-${title}${datePart}` : `${title}${datePart}`
+      setNewName(name)
+      return
+    }
+
+    // ── Medical documents (category 5) require an entity/facility ────────────
+    if (!facility) {
+      setNewName('')
+      return
+    }
+
     if (form.docType === 'B') {
       if (!form.dosStart || !form.updateDate) { setNewName(''); return }
       name = `Bills-${facility}-DOS ${dosRange}-updated as of ${updateDate}`
@@ -116,10 +142,11 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
       if (!form.updateDate) { setNewName(''); return }
       name = `${facility} Health Lien-updated as of ${updateDate}`
     } else if (form.docType === 'PIP') {
-      if (!form.updateDate) { setNewName(''); return }
+      // Exhausted PIP logs are named without an "updated as of" date per convention.
       if (form.pipExhausted === 'Y') {
-        name = `${facility} PIP Log-exhausted-updated as of ${updateDate}`
+        name = `${facility} PIP Log-exhausted`
       } else {
+        if (!form.updateDate) { setNewName(''); return }
         name = `${facility} PIP Log-updated as of ${updateDate}`
       }
     }
@@ -271,7 +298,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
       setPreviewData(null)
       setActiveTab('rename')
       alert(`✅ File renamed: ${newFullName}`)
-      setForm({ docType: '', dosStart: '', dosEnd: '', updateDate: '', pipExhausted: 'N' })
+      setForm({ docType: '', dosStart: '', dosEnd: '', updateDate: '', pipExhausted: 'N', title: '', docDate: '' })
       if (onRenameSuccess) onRenameSuccess()
 
     } catch (err) {
@@ -281,7 +308,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
   }
 
   const handleClear = () => {
-    setForm({ docType: '', dosStart: '', dosEnd: '', updateDate: '', pipExhausted: 'N' })
+    setForm({ docType: '', dosStart: '', dosEnd: '', updateDate: '', pipExhausted: 'N', title: '', docDate: '' })
     setCurrentFile(null)
     setNewName('')
     setEntityName('')
@@ -457,6 +484,31 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
             <option value="Y">Y</option>
           </select>
         </div>
+      )}
+
+      {/* General documents (category 4): named exactly as titled, + optional date */}
+      {form.docType && !MEDICAL_TYPES.includes(form.docType) && (
+        <>
+          <div style={styles.field}>
+            <label style={styles.label}>Document title (exactly as titled)</label>
+            <input
+              name="title"
+              style={styles.input}
+              placeholder="e.g. Probable Cause Affidavit"
+              value={form.title}
+              onChange={handleChange}
+            />
+          </div>
+          <div style={styles.field}>
+            <label style={styles.label}>Date (optional)</label>
+            <DateField
+              name="docDate"
+              value={form.docDate}
+              style={styles.input}
+              onChange={handleChange}
+            />
+          </div>
+        </>
       )}
 
       <div style={styles.namePreview}>

@@ -89,22 +89,22 @@ db.exec(`
   );
 `)
 
-// Seed document types once on first run — codes are used as filename prefixes.
-const count = db.prepare('SELECT COUNT(*) as count FROM document_types').get()
-if (count.count === 0) {
-  const insert = db.prepare('INSERT INTO document_types (code, label) VALUES (?, ?)')
-  const types = [
-    ['B',  'Medical Bills'],
-    ['MR', 'Medical Records'],
-    ['PD', 'Police Report'],
-    ['LT', 'Letter'],
-    ['RX', 'Prescription'],
-    ['IN', 'Insurance'],
-    ['OT', 'Other'],
-  ]
-  types.forEach(([code, label]) => insert.run(code, label))
-  console.log('Document types seeded.')
-}
+// Seed/reconcile document types. INSERT OR IGNORE makes this idempotent and adds
+// any missing types to existing installs (e.g. HL / PIP, which the renamer
+// supports but earlier seeds were missing). Codes are used as filename prefixes.
+const docTypeSeeds = [
+  ['B',   'Medical Bills'],
+  ['MR',  'Medical Records'],
+  ['HL',  'Health Lien'],
+  ['PIP', 'PIP Log'],
+  ['PD',  'Police Report'],
+  ['LT',  'Letter'],
+  ['RX',  'Prescription'],
+  ['IN',  'Insurance'],
+  ['OT',  'Other'],
+]
+const insertDocType = db.prepare('INSERT OR IGNORE INTO document_types (code, label) VALUES (?, ?)')
+for (const [code, label] of docTypeSeeds) insertDocType.run(code, label)
 
 // Seed initial users from environment variables on first launch.
 // Credentials are defined in .env and never committed to source control.
