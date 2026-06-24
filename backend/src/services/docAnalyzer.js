@@ -14,7 +14,32 @@ const OCR_THRESHOLD = 50
 const extractText = async (filePath) => {
   const buffer = fs.readFileSync(filePath)
   const data = await pdfParse(buffer)
-  return data.text || ''
+  return { text: data.text || '', info: data.info || null }
+}
+
+/**
+ * Returns the date the document was created, as YYYY-MM-DD, used as the
+ * "updated as of" fallback when the document text has no explicit statement /
+ * as-of date. Prefers the PDF's CreationDate metadata; otherwise falls back to
+ * the file's own creation (birthtime) or last-modified time.
+ */
+const getDocCreationDate = (filePath, pdfInfo) => {
+  const raw = pdfInfo?.CreationDate // PDF format: "D:YYYYMMDDHHmmSS..."
+  if (raw) {
+    const m = /D:(\d{4})(\d{2})(\d{2})/.exec(raw)
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  }
+  try {
+    const st = fs.statSync(filePath)
+    const d = st.birthtimeMs && st.birthtimeMs > 0 ? st.birthtime : st.mtime
+    if (d && !isNaN(d.getTime())) {
+      const y  = d.getFullYear()
+      const mo = String(d.getMonth() + 1).padStart(2, '0')
+      const da = String(d.getDate()).padStart(2, '0')
+      return `${y}-${mo}-${da}`
+    }
+  } catch { /* ignore stat errors */ }
+  return null
 }
 
 /**
@@ -450,6 +475,7 @@ const analyzeDocument = async (filePath, providers) => {
 
     let text = ''
     let usedOcr = false
+    let pdfInfo = null
 
     if (isImage) {
       // Image files go directly to OCR — no intermediate PDF rendering needed.
@@ -459,7 +485,9 @@ const analyzeDocument = async (filePath, providers) => {
       // pdf-parse throws on malformed PDFs (e.g. "bad XRef entry"); treat that
       // the same as an empty text layer so the OCR fallback still runs.
       try {
-        text = await extractText(filePath)
+        const parsed = await extractText(filePath)
+        text    = parsed.text
+        pdfInfo = parsed.info
       } catch (parseErr) {
         console.warn('pdf-parse failed, falling back to OCR:', parseErr.message)
         text = ''
@@ -479,6 +507,12 @@ const analyzeDocument = async (filePath, providers) => {
       return { suggestion: null, reason: 'Could not extract text from document', extractedText: '' }
 
     const dates = extractDates(text)
+    // "Updated as of" falls back to the document's creation date (PDF metadata
+    // or file timestamp) when the text has no explicit statement / as-of date.
+    if (!dates.updateDate) {
+      const created = getDocCreationDate(filePath, pdfInfo)
+      if (created) dates.updateDate = created
+    }
     const flags = detectFlags(text)
 
     // 0) Suggest the document type from the content so the UI can pre-select it.

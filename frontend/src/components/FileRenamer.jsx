@@ -68,23 +68,6 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
     buildName()
   }, [form, entityName])
 
-  // Returns today's date as an ISO string (YYYY-MM-DD) in local time.
-  const todayISO = () => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-  }
-
-  // "Updated as of" defaults to today for doc types that require it (B/HL/PIP)
-  // when the document didn't provide one. Today is the date the user is
-  // reviewing/updating the file, so this unblocks the rename out of the box.
-  // It stays editable, and a value extracted from the document is never overwritten.
-  useEffect(() => {
-    if (['B', 'HL', 'PIP'].includes(form.docType) && !form.updateDate) {
-      setForm(f => ({ ...f, updateDate: todayISO() }))
-      setAutoFilledFields(f => ({ ...f, updateDate: true }))
-    }
-  }, [form.docType])
-
   const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
 
   // Formats yyyy-mm-dd (from <input type="date">) to mm.dd.yy for file names,
