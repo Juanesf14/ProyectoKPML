@@ -323,8 +323,14 @@ Base: `http://127.0.0.1:3001/api`. Todos los endpoints requieren JWT salvo los m
 - **Iconografía:** `icon.ico` multi-resolución (16–256 px) para Windows e `icon.icns` para macOS;
   iconos de instalador/desinstalador declarados explícitamente en la configuración NSIS.
 - **CI:** workflow de GitHub Actions (`build-windows.yml`) con *jobs* paralelos en
-  `macos-latest` y `windows-latest`; ejecución manual (`workflow_dispatch`); publica los
-  instaladores como artefactos.
+  `macos-latest` y `windows-latest`; ejecución manual (`workflow_dispatch`). Ejecuta
+  `release:mac` / `release:win`, que publican instaladores y metadatos de actualización a un
+  *release* de GitHub (además de subir los artefactos).
+- **Auto-actualización:** mediante **electron-updater** contra GitHub Releases. Las apps
+  instaladas verifican una versión más nueva al iniciar, la descargan en segundo plano y piden
+  reiniciar para aplicarla (solo en producción; los errores se ignoran para no interrumpir el uso).
+  Proceso de release: (1) subir la versión en `package.json`; (2) correr el workflow → crea un
+  *release* en borrador; (3) publicar el borrador para que los clientes lo reciban.
 - **Persistencia de datos:** la base de datos se ubica en el `userData` del SO para sobrevivir a
   actualizaciones.
 - **Nombre de app distintivo** (`RenamerJF ML`) para aislar el `userData` de otras variantes.

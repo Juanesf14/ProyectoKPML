@@ -80,9 +80,34 @@ JWT_SECRET=your_secret_here
 SEED_ADMIN_NAME=Admin
 SEED_ADMIN_EMAIL=admin@example.com
 SEED_ADMIN_PASSWORD=changeme
-Build
+Build (local, no publishing)
 npm run build:mac   # .dmg for macOS (arm64 + x64)
 npm run build:win   # .exe installer for Windows x64
+
+## Releasing & Auto-Update
+
+The app auto-updates via `electron-updater` against GitHub Releases. Installed
+apps check for a newer version on launch, download it in the background, and
+prompt the user to restart.
+
+**To ship a new version:**
+
+1. **Bump the version** in `package.json` (`"version"`). The updater only
+   upgrades when the published version is *higher* than the installed one.
+2. **Run the build workflow** (GitHub → Actions → "Build Installers" → Run
+   workflow). CI runs `release:mac` / `release:win`, which build the installers
+   and publish them — plus the `latest.yml` / `latest-mac.yml` update metadata —
+   to a **draft** GitHub Release.
+3. **Publish the draft Release** (GitHub → Releases → edit the draft → Publish).
+   Clients only receive *published* releases, so this is the switch that makes
+   the update go live.
+
+Notes:
+- The first installed version has nothing newer to fetch; auto-update kicks in
+  from the *next* published release with a higher version.
+- `release:*` scripts require a `GH_TOKEN` (provided automatically in CI). Local
+  `build:*` scripts never publish and need no token.
+
 Project Structure
 ├── electron/          Desktop shell (main process + preload)
 ├── frontend/          React app (Vite)
