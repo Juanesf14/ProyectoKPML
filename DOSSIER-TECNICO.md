@@ -213,6 +213,15 @@ ai). Los resultados pueden guardarse (`POST /api/billing/save`) y consultarse po
 - **Implicación de privacidad:** cuando se invoca, el texto extraído del documento sale del equipo
   hacia un tercero (Google). Esto debe gobernarse por la política de privacidad/cumplimiento del
   bufete (ver §13).
+- **Chat de documento:** el módulo de chat usa la **API de Gemini**. Antes de enviar cualquier
+  mensaje, el diálogo muestra una **advertencia de privacidad/PII** indicando que las preguntas y
+  el texto del documento se envían a Google, y que se evite incluir información personal/de salud
+  innecesaria. La consulta a Gemini es **opt-in** (botón "Enable Gemini").
+- **Migración planificada (Lois de Filevine):** el proveedor de IA previsto a futuro para el chat
+  es **Lois**, el asistente de **Filevine**. Al mantener los datos dentro de la plataforma de
+  gestión de casos del bufete, evita enviar PHI a Google. La integración conservará la misma
+  interfaz interna (`chatWithDocument(sessionId, messages) → reply`), reemplazando solo la llamada
+  a Gemini (ver `backend/src/services/aiChat.js`).
 
 ---
 
