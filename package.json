@@ -12,7 +12,9 @@
     "rebuild:native": "electron-rebuild -f",
     "build:mac": "npm run build:frontend && npm run rebuild:native && electron-builder --mac",
     "build:win": "npm run build:frontend && npm run rebuild:native && electron-builder --win",
-    "build:all": "npm run build:frontend && npm run rebuild:native && electron-builder --mac"
+    "build:all": "npm run build:frontend && npm run rebuild:native && electron-builder --mac",
+    "release:mac": "npm run build:frontend && npm run rebuild:native && electron-builder --mac --publish always",
+    "release:win": "npm run build:frontend && npm run rebuild:native && electron-builder --win --publish always"
   },
   "workspaces": [
     "frontend"
@@ -21,6 +23,13 @@
     "appId": "com.renamerjf.ml.app",
     "productName": "RenamerJF ML",
     "copyright": "Copyright © 2026 RenamerJF",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Juanesf14",
+        "repo": "ProyectoKPML"
+      }
+    ],
     "directories": {
       "output": "dist-electron",
       "buildResources": "build-assets"
@@ -112,6 +121,7 @@
     "canvas": "^3.2.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "electron-updater": "^6.8.9",
     "express": "^5.2.1",
     "fuse.js": "^7.3.0",
     "jsonwebtoken": "^9.0.3",

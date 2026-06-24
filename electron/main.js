@@ -1,9 +1,44 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
+const { autoUpdater } = require('electron-updater')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
 
 const isProd = app.isPackaged
+
+/**
+ * Checks GitHub Releases for a newer version and, once an update is downloaded
+ * in the background, asks the user whether to restart and install it.
+ * Only runs in packaged builds; errors are swallowed so a failed update check
+ * (e.g. offline) never disrupts normal use.
+ */
+function setupAutoUpdates(win) {
+  if (!isProd) return
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('update-downloaded', async (info) => {
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'info',
+      buttons: ['Restart now', 'Later'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Update available',
+      message: `Version ${info.version} has been downloaded.`,
+      detail: 'Restart the app to apply the update.',
+    })
+    if (response === 0) autoUpdater.quitAndInstall()
+  })
+
+  autoUpdater.on('error', (err) => {
+    console.error('[auto-update] error:', err?.message || err)
+  })
+
+  autoUpdater.checkForUpdates().catch(err =>
+    console.error('[auto-update] check failed:', err?.message || err)
+  )
+}
 
 // Distinct app name so this ML build keeps its own userData directory, separate
 // from the standard RenamerJF build. Must run before app 'ready'. Critical on
@@ -82,6 +117,9 @@ function createWindow() {
   } else {
     win.loadURL('http://localhost:5173')
   }
+
+  setupAutoUpdates(win)
+  return win
 }
 
 app.whenReady().then(() => {
