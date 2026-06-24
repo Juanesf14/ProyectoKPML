@@ -96,6 +96,12 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
     return `${m}.${d}.${y.slice(-2)}`
   }
 
+  // Replaces characters that are invalid in file names (/, \, :, *, ?, ", <, >, |)
+  // so a name like "Dec Page (PIP/UM)" can't break the rename. Collapses the
+  // resulting whitespace.
+  const sanitizeFilename = (n) =>
+    n.replace(/[/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim()
+
   // Medical document types (category 5) follow fixed templates. Everything else
   // is a "general document" (category 4): named exactly as titled, preceded by
   // the agency/company and optionally followed by a date.
@@ -122,7 +128,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
       const datePart = form.docDate ? `-${formatDate(form.docDate)}` : ''
       // Entity is optional here (e.g. "Tax Returns-Year", "Health Ins Card").
       name = facility ? `${facility}-${title}${datePart}` : `${title}${datePart}`
-      setNewName(name)
+      setNewName(sanitizeFilename(name))
       return
     }
 
@@ -151,7 +157,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
       }
     }
 
-    setNewName(name)
+    setNewName(sanitizeFilename(name))
   }
 
   /**

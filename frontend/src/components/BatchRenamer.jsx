@@ -13,8 +13,12 @@ const DOC_TYPES = [
 const formatDate = (dateStr) => {
   if (!dateStr) return ''
   const [y, m, d] = dateStr.split('-')
-  return `${m}/${d}/${y}`
+  // mm.dd.yy with dots — "/" is a path separator and is invalid in filenames.
+  return `${m}.${d}.${y.slice(-2)}`
 }
+
+// Replaces characters invalid in file names so a "/" in a name can't break the rename.
+const sanitizeFilename = (n) => n.replace(/[/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim()
 
 const buildName = ({ docType, entityName, dosStart, dosEnd, updateDate, pipExhausted }) => {
   if (!docType || !entityName) return ''
@@ -23,16 +27,16 @@ const buildName = ({ docType, entityName, dosStart, dosEnd, updateDate, pipExhau
   const ud = formatDate(updateDate)
   const range = de ? `${ds}-${de}` : ds
 
-  if (docType === 'B')   return (dosStart && updateDate) ? `Bills-${entityName}-DOS ${range}-updated as of ${ud}` : ''
-  if (docType === 'MR')  return dosStart ? `Records-${entityName}-DOS ${range}` : ''
-  if (docType === 'HL')  return updateDate ? `${entityName} Health Lien-updated as of ${ud}` : ''
-  if (docType === 'PIP') {
-    if (!updateDate) return ''
-    return pipExhausted === 'Y'
-      ? `${entityName} PIP Log-exhausted-updated as of ${ud}`
-      : `${entityName} PIP Log-updated as of ${ud}`
+  let name = ''
+  if (docType === 'B')   name = (dosStart && updateDate) ? `Bills-${entityName}-DOS ${range}-updated as of ${ud}` : ''
+  else if (docType === 'MR')  name = dosStart ? `Records-${entityName}-DOS ${range}` : ''
+  else if (docType === 'HL')  name = updateDate ? `${entityName} Health Lien-updated as of ${ud}` : ''
+  else if (docType === 'PIP') {
+    // Exhausted PIP logs carry no "updated as of" date per convention.
+    if (pipExhausted === 'Y') name = `${entityName} PIP Log-exhausted`
+    else name = updateDate ? `${entityName} PIP Log-updated as of ${ud}` : ''
   }
-  return ''
+  return name ? sanitizeFilename(name) : ''
 }
 
 let idCounter = 0
