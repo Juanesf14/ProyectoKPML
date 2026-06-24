@@ -196,13 +196,15 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
         setEntityName(data.detectedEntity.name)
       }
 
+      const updates = {}
+      // Suggested document type from the content — pre-select it (still editable).
+      if (data.docType) { updates.docType = data.docType; filled.docType = true }
       if (data.dates) {
-        const updates = {}
         if (data.dates.dosStart)   { updates.dosStart   = data.dates.dosStart;   filled.dosStart   = true }
         if (data.dates.dosEnd)     { updates.dosEnd     = data.dates.dosEnd;     filled.dosEnd     = true }
         if (data.dates.updateDate) { updates.updateDate = data.dates.updateDate; filled.updateDate = true }
-        if (Object.keys(updates).length > 0) setForm(f => ({ ...f, ...updates }))
       }
+      if (Object.keys(updates).length > 0) setForm(f => ({ ...f, ...updates }))
 
       setAutoFilledFields(filled)
       if (data.flags) setFlags(data.flags)
@@ -416,8 +418,15 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
       )}
 
       <div style={styles.field}>
-        <label style={styles.label}>Document Type</label>
-        <select name="docType" value={form.docType} onChange={handleChange} style={styles.input}>
+        <label style={styles.label}>
+          Document Type {autoFilledFields.docType && <span style={styles.autoBadge}>auto</span>}
+        </label>
+        <select
+          name="docType"
+          value={form.docType}
+          onChange={e => { handleChange(e); setAutoFilledFields(f => ({ ...f, docType: false })) }}
+          style={{ ...styles.input, ...(autoFilledFields.docType ? styles.inputAuto : {}) }}
+        >
           <option value="">Select...</option>
           {docTypes.map(dt => (
             <option key={dt.id} value={dt.code}>{dt.code} – {dt.label}</option>

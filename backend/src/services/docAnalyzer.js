@@ -335,6 +335,38 @@ const isRecentYear = (yyyy) => {
  *
  * updateDate is extracted independently using statement/printed/as-of labels.
  */
+/**
+ * Suggests a document-type code from the text by keyword scoring.
+ * Returns one of the document_types codes (B, MR, HL, PIP, PD, RX, IN) or null
+ * when no category scores high enough. The UI pre-selects it (editable) so the
+ * user rarely has to pick the type manually.
+ *
+ * Scoring beats first-match because real documents mix terms (e.g. a bill also
+ * says "patient"); the category with the most distinct keyword hits wins.
+ */
+const DOC_TYPE_KEYWORDS = {
+  // Most specific first; each entry is a list of case-insensitive patterns.
+  PIP: [/personal\s+injury\s+protection/, /\bpip\s+(?:log|ledger|payout|ledger|benefits?)/, /\bpip\b.*\bexhaust/],
+  HL:  [/health\s+lien/, /letter\s+of\s+protection/, /\blien\s+(?:amount|balance|notice)/, /subrogation/],
+  PD:  [/traffic\s+crash\s+report/, /crash\s+report/, /police\s+report/, /incident\s+report/, /probable\s+cause\s+affidavit/, /investigating\s+officer/],
+  RX:  [/\bprescription\b/, /\bpharmacy\b/, /\brefills?\b/, /\bsig:/, /dispense\s+as\s+written/],
+  IN:  [/declarations?\s+page/, /\bdec\s+page\b/, /policy\s+number/, /insurance\s+policy/, /coverage\s+(?:limits?|period)/, /\bpremium\b/],
+  B:   [/statement\s+of\s+account/, /amount\s+due/, /balance\s+due/, /total\s+charges?/, /\bcpt\b/, /\bhcpcs\b/, /itemized/, /pay\s+this\s+amount/, /\binvoice\b/],
+  MR:  [/medical\s+records?/, /progress\s+notes?/, /history\s+(?:and|&)\s+physical/, /discharge\s+summary/, /operative\s+report/, /chart\s+notes?/, /office\s+visit/, /assessment\s+and\s+plan/],
+}
+
+const detectDocType = (text) => {
+  if (!text) return null
+  const scores = {}
+  for (const [code, patterns] of Object.entries(DOC_TYPE_KEYWORDS)) {
+    let hits = 0
+    for (const re of patterns) if (new RegExp(re, 'i').test(text)) hits++
+    if (hits > 0) scores[code] = hits
+  }
+  const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1])
+  return ranked.length ? ranked[0][0] : null
+}
+
 const extractDates = (text) => {
   let m
   const result = {}
@@ -449,6 +481,9 @@ const analyzeDocument = async (filePath, providers) => {
     const dates = extractDates(text)
     const flags = detectFlags(text)
 
+    // 0) Suggest the document type from the content so the UI can pre-select it.
+    const docType = detectDocType(text)
+
     // 1) Open extraction — detect the entity name from the document (DB-independent).
     const detectedEntity = extractEntityName(text)
 
@@ -465,7 +500,7 @@ const analyzeDocument = async (filePath, providers) => {
         fuzzyMatch(text, providers)
     }
 
-    return { suggestion, detectedEntity, dates, flags, usedOcr, extractedText: text }
+    return { suggestion, detectedEntity, docType, dates, flags, usedOcr, extractedText: text }
 
   } catch (err) {
     console.error('Doc analyzer error:', err.message)

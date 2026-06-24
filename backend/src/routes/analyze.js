@@ -72,6 +72,7 @@ router.post('/', async (req, res) => {
     return res.json({
       suggestion: null,
       detectedEntity: result.detectedEntity,
+      docType: result.docType,
       reason: 'No providers registered',
       dates: result.dates,
       flags: result.flags,
