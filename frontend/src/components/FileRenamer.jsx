@@ -282,6 +282,7 @@ export default function FileRenamer({ selectedProvider, onRenameSuccess, initial
         doc_type_id: docType?.id || null,
         original_name: currentFile.name,
         new_name: newFullName,
+        entity_name: entityName || null,
         dos_start: form.dosStart || null,
         dos_end: form.dosEnd || null,
         update_date: form.updateDate || null,

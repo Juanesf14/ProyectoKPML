@@ -6,6 +6,7 @@ import BatchRenamer from '../components/BatchRenamer'
 import CaseTracker from '../components/CaseTracker'
 import BillingPanel from '../components/BillingPanel'
 import AccountPanel from '../components/AccountPanel'
+import ReportsPanel from '../components/ReportsPanel'
 
 export default function Dashboard({ user, onLogout }) {
   const [selectedProvider, setSelectedProvider] = useState(null)
@@ -13,6 +14,7 @@ export default function Dashboard({ user, onLogout }) {
   const [mode, setMode]                         = useState('single') // 'single' | 'batch' | 'cases'
   const [billingOpen, setBillingOpen]           = useState(false)
   const [accountOpen, setAccountOpen]           = useState(false)
+  const [reportsOpen, setReportsOpen]           = useState(false)
   const [renamerInitialFile, setRenamerInitialFile] = useState(null)
 
   const handleRenameSuccess = () => setRefreshTrigger(prev => prev + 1)
@@ -57,6 +59,13 @@ export default function Dashboard({ user, onLogout }) {
         </div>
 
         <div style={styles.topbarRight}>
+          <button
+            style={styles.reportsBtn}
+            onClick={() => setReportsOpen(true)}
+            title="Reports — repeated medical providers"
+          >
+            📊
+          </button>
           <span style={styles.welcome} onClick={() => setAccountOpen(true)} title="Account settings">
             👤 {user.name}{user.role === 'admin' ? ' ▾' : ''}
           </span>
@@ -74,6 +83,10 @@ export default function Dashboard({ user, onLogout }) {
 
       {accountOpen && (
         <AccountPanel user={user} onClose={() => setAccountOpen(false)} />
+      )}
+
+      {reportsOpen && (
+        <ReportsPanel onClose={() => setReportsOpen(false)} />
       )}
 
       {mode === 'single' ? (
@@ -197,6 +210,16 @@ const styles = {
     fontWeight: 700,
     cursor: 'pointer',
     letterSpacing: '0.04em',
+  },
+  reportsBtn: {
+    background: 'transparent',
+    border: '1px solid #2E4057',
+    borderRadius: 3,
+    color: '#8B95A1',
+    fontSize: 13,
+    cursor: 'pointer',
+    padding: '3px 8px',
+    lineHeight: 1,
   },
   layout: {
     display: 'grid',

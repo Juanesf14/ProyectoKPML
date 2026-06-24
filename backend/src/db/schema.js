@@ -106,6 +106,13 @@ const docTypeSeeds = [
 const insertDocType = db.prepare('INSERT OR IGNORE INTO document_types (code, label) VALUES (?, ?)')
 for (const [code, label] of docTypeSeeds) insertDocType.run(code, label)
 
+// Lightweight migration: capture the entity/facility name used in each rename so
+// the Reports view can show repeated providers even when they aren't registered.
+const renameHistoryCols = db.prepare('PRAGMA table_info(rename_history)').all().map(c => c.name)
+if (!renameHistoryCols.includes('entity_name')) {
+  db.exec('ALTER TABLE rename_history ADD COLUMN entity_name TEXT')
+}
+
 // Seed initial users from environment variables on first launch.
 // Credentials are defined in .env and never committed to source control.
 // Partial seeds are supported: rows with missing name/email/password are skipped.

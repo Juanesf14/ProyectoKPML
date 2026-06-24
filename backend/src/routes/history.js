@@ -15,6 +15,7 @@ router.post('/', (req, res) => {
     doc_type_id,
     original_name,
     new_name,
+    entity_name,
     dos_start,
     dos_end,
     update_date,
@@ -30,12 +31,12 @@ router.post('/', (req, res) => {
   db.prepare(`
     INSERT INTO rename_history (
       id, user_id, provider_id, doc_type_id,
-      original_name, new_name, dos_start, dos_end,
+      original_name, new_name, entity_name, dos_start, dos_end,
       update_date, pip_exhausted
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, user_id, provider_id, doc_type_id,
-    original_name, new_name, dos_start, dos_end,
+    original_name, new_name, entity_name || null, dos_start, dos_end,
     update_date, pip_exhausted ? 1 : 0
   )
 
@@ -55,6 +56,30 @@ router.get('/', (req, res) => {
   `).all(req.user.id)
 
   res.json(history)
+})
+
+// GET /api/history/report — aggregates for the Reports view. Focused on which
+// medical providers recur. Uses the registered provider name when available,
+// otherwise the free-text entity name captured at rename time.
+router.get('/report', (req, res) => {
+  const providers = db.prepare(`
+    SELECT
+      COALESCE(NULLIF(TRIM(p.name), ''), NULLIF(TRIM(rh.entity_name), '')) AS provider,
+      COUNT(*) AS count,
+      MAX(rh.renamed_at) AS last_used
+    FROM rename_history rh
+    LEFT JOIN providers p ON rh.provider_id = p.id
+    WHERE rh.user_id = ?
+    GROUP BY provider
+    HAVING provider IS NOT NULL
+    ORDER BY count DESC, last_used DESC
+  `).all(req.user.id)
+
+  const totals = db.prepare(
+    'SELECT COUNT(*) AS total FROM rename_history WHERE user_id = ?'
+  ).get(req.user.id)
+
+  res.json({ total: totals.total, providers })
 })
 
 module.exports = router 

@@ -140,6 +140,7 @@ export default function BatchRenamer() {
           doc_type_id:    docType?.id || null,
           original_name:  item.file.name,
           new_name:       newFullName,
+          entity_name:    item.form.entityName || null,
           dos_start:      item.form.dosStart || null,
           dos_end:        item.form.dosEnd   || null,
           update_date:    item.form.updateDate || null,
