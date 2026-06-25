@@ -42,6 +42,9 @@ app.get('/api/document-types', (req, res) => {
 
 // Bind to the loopback interface only. The backend is a private companion to the
 // local Electron app and must never be reachable from other machines on the LAN.
-app.listen(PORT, '127.0.0.1', () => {
+const server = app.listen(PORT, '127.0.0.1', () => {
   console.log(`Backend running on http://127.0.0.1:${PORT}`)
 })
+
+// Exported so integration tests can drive the app and close the server cleanly.
+module.exports = { app, server }

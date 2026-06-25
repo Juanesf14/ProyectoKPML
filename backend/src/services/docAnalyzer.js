@@ -624,4 +624,4 @@ const detectFlags = (text) => {
   return { hasAmbulance, ambulanceCompany, hasReferral, referrals }
 }
 
-module.exports = { analyzeDocument, extractDates, detectFlags, prepareTextForAI }
+module.exports = { analyzeDocument, extractDates, detectDocType, detectFlags, prepareTextForAI }
