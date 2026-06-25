@@ -20,12 +20,27 @@ const formatDate = (dateStr) => {
 // Replaces characters invalid in file names so a "/" in a name can't break the rename.
 const sanitizeFilename = (n) => n.replace(/[/\\:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim()
 
-const buildName = ({ docType, entityName, dosStart, dosEnd, updateDate, pipExhausted }) => {
-  if (!docType || !entityName) return ''
+// Medical types follow fixed templates; everything else is a general document
+// (category 4): named exactly as titled, preceded by entity, optional date.
+const MEDICAL_TYPES = ['B', 'MR', 'HL', 'PIP']
+
+const buildName = ({ docType, entityName, dosStart, dosEnd, updateDate, pipExhausted, title, docDate }) => {
+  if (!docType) return ''
   const ds = formatDate(dosStart)
   const de = formatDate(dosEnd)
   const ud = formatDate(updateDate)
   const range = de ? `${ds}-${de}` : ds
+
+  // General documents — free-text title, entity optional, optional date.
+  if (!MEDICAL_TYPES.includes(docType)) {
+    const t = (title || '').trim()
+    if (!t) return ''
+    const datePart = docDate ? `-${formatDate(docDate)}` : ''
+    const general = entityName ? `${entityName}-${t}${datePart}` : `${t}${datePart}`
+    return sanitizeFilename(general)
+  }
+
+  if (!entityName) return ''
 
   let name = ''
   if (docType === 'B')   name = (dosStart && updateDate) ? `Bills-${entityName}-DOS ${range}-updated as of ${ud}` : ''
@@ -79,7 +94,7 @@ export default function BatchRenamer() {
       selected: true,
       suggestion: null,
       usedOcr: false,
-      form: { docType: '', entityName: '', dosStart: '', dosEnd: '', updateDate: '', pipExhausted: 'N' },
+      form: { docType: '', entityName: '', dosStart: '', dosEnd: '', updateDate: '', pipExhausted: 'N', title: '', docDate: '' },
       newName: '',
       error: null,
     })))
@@ -102,8 +117,10 @@ export default function BatchRenamer() {
         if (data.suggestion) {
           form.entityName = data.suggestion.name
         }
-        if (data.dates?.dosStart) form.dosStart = data.dates.dosStart
-        if (data.dates?.dosEnd)   form.dosEnd   = data.dates.dosEnd
+        if (data.docType)            form.docType    = data.docType
+        if (data.dates?.dosStart)    form.dosStart   = data.dates.dosStart
+        if (data.dates?.dosEnd)      form.dosEnd     = data.dates.dosEnd
+        if (data.dates?.updateDate)  form.updateDate = data.dates.updateDate
 
         setQueue(q => q.map(i => {
           if (i.id !== item.id) return i
@@ -227,9 +244,10 @@ export default function BatchRenamer() {
                 <th style={styles.th}>Status</th>
                 <th style={styles.th}>Provider / Entity</th>
                 <th style={styles.th}>Doc Type</th>
+                <th style={styles.th}>Title</th>
                 <th style={styles.th}>DOS Start</th>
                 <th style={styles.th}>DOS End</th>
-                <th style={styles.th}>Update Date</th>
+                <th style={styles.th}>Update / Date</th>
                 <th style={styles.th}>New Name</th>
               </tr>
             </thead>
@@ -238,6 +256,7 @@ export default function BatchRenamer() {
                 <BatchRow
                   key={item.id}
                   item={item}
+                  docTypes={docTypes}
                   renaming={renamingIds.has(item.id)}
                   onToggle={() => updateItem(item.id, { selected: !item.selected })}
                   onFormChange={(patch) => updateForm(item.id, patch)}
@@ -251,8 +270,10 @@ export default function BatchRenamer() {
   )
 }
 
-function BatchRow({ item, renaming, onToggle, onFormChange }) {
+function BatchRow({ item, docTypes, renaming, onToggle, onFormChange }) {
   const { file, status, form, newName, suggestion, usedOcr, error, selected } = item
+  const typeOptions = docTypes.length ? docTypes : DOC_TYPES
+  const isGeneral = form.docType && !MEDICAL_TYPES.includes(form.docType)
 
   const statusColor = {
     pending:   '#718096',
@@ -310,10 +331,22 @@ function BatchRow({ item, renaming, onToggle, onFormChange }) {
           disabled={status === 'done'}
         >
           <option value="">Type…</option>
-          {DOC_TYPES.map(dt => (
+          {typeOptions.map(dt => (
             <option key={dt.code} value={dt.code}>{dt.code}</option>
           ))}
         </select>
+      </td>
+
+      <td style={styles.td}>
+        {isGeneral && (
+          <input
+            style={styles.cellInput}
+            value={form.title || ''}
+            placeholder="Title…"
+            onChange={e => onFormChange({ title: e.target.value })}
+            disabled={status === 'done'}
+          />
+        )}
       </td>
 
       <td style={styles.td}>
@@ -344,6 +377,14 @@ function BatchRow({ item, renaming, onToggle, onFormChange }) {
             value={form.updateDate}
             style={styles.cellInput}
             onChange={e => onFormChange({ updateDate: e.target.value })}
+            disabled={status === 'done'}
+          />
+        )}
+        {isGeneral && (
+          <DateField
+            value={form.docDate || ''}
+            style={styles.cellInput}
+            onChange={e => onFormChange({ docDate: e.target.value })}
             disabled={status === 'done'}
           />
         )}
