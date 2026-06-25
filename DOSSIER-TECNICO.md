@@ -300,6 +300,8 @@ Base: `http://127.0.0.1:3001/api`. Todos los endpoints requieren JWT salvo los m
 - El backend escucha **solo en `127.0.0.1`** (no accesible desde la red local).
 - Los endpoints de análisis y facturación validan la **extensión del archivo** (lista blanca de
   tipos de documento/imagen), evitando la lectura de archivos arbitrarios del host.
+- **Rate limiting** en `/login` (10 intentos / 15 min por IP) para mitigar fuerza bruta.
+- **Cabeceras de seguridad** vía `helmet` (nosniff, frameguard, HSTS, etc.).
 
 **Consideraciones de cumplimiento (a evaluar por el bufete):**
 - **PHI a terceros:** el uso de Gemini envía texto de documentos a Google. Requiere decisión de
@@ -311,9 +313,8 @@ Base: `http://127.0.0.1:3001/api`. Todos los endpoints requieren JWT salvo los m
 - **Transporte local:** la comunicación interna es HTTP en loopback (no expuesta a la red).
 
 **Mejoras de seguridad recomendadas (backlog):**
-- *Rate limiting* en `/login` (mitigar fuerza bruta).
-- Cabeceras de seguridad (`helmet`).
-- Restringir además la **ruta base** de archivos analizables (no solo la extensión).
+- Auditoría de accesos (quién consulta/edita qué y cuándo).
+- Expiración de sesión configurable y revocación de tokens.
 
 ---
 

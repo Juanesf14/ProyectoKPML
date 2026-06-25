@@ -1,11 +1,22 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
+const rateLimit = require('express-rate-limit')
 const { v4: uuidv4 } = require('uuid')
 const { authMiddleware, adminMiddleware } = require('../middleware/auth')
 const db = require('../db/schema')
 
 const router = express.Router()
+
+// Throttle credential-guessing on the unauthenticated endpoints. Allows normal
+// retries (a few typos) but blocks brute-force attempts.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                  // per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again later.' },
+})
 
 const signToken = (u) =>
   jwt.sign(
@@ -48,7 +59,7 @@ router.post('/bootstrap', (req, res) => {
 
 // POST /api/auth/login — returns a signed JWT valid for 8 hours.
 // Both "user not found" and "wrong password" return the same 401 to avoid user enumeration.
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
   const { email, password } = req.body
 
   if (!email || !password)
