@@ -300,8 +300,11 @@ Base: `http://127.0.0.1:3001/api`. Todos los endpoints requieren JWT salvo los m
 - El backend escucha **solo en `127.0.0.1`** (no accesible desde la red local).
 - Los endpoints de análisis y facturación validan la **extensión del archivo** (lista blanca de
   tipos de documento/imagen), evitando la lectura de archivos arbitrarios del host.
-- **Rate limiting** en `/login` (10 intentos / 15 min por IP) para mitigar fuerza bruta.
-- **Cabeceras de seguridad** vía `helmet` (nosniff, frameguard, HSTS, etc.).
+- **Rate limiting** en el login (`express-rate-limit`): frena ataques de fuerza bruta sobre
+  contraseñas.
+- **Cabeceras de seguridad** con `helmet` (nosniff, frameguard, etc.).
+- **Suite de pruebas automatizadas** del backend (`node:test`) que corre en CI antes de cada
+  build; si falla, el build no se genera.
 
 **Consideraciones de cumplimiento (a evaluar por el bufete):**
 - **PHI a terceros:** el uso de Gemini envía texto de documentos a Google. Requiere decisión de
@@ -381,7 +384,7 @@ Base: `http://127.0.0.1:3001/api`. Todos los endpoints requieren JWT salvo los m
 - El análisis depende de la calidad del OCR en documentos escaneados de baja resolución.
 - El uso de IA externa está condicionado a configuración de clave y consentimiento; sin ella, el
   sistema opera solo con capas local + ML.
-- Backlog de seguridad: *rate limiting*, `helmet`, y validación de ruta base de archivos.
-- Posible evolución: sincronización opcional entre equipos, auditoría de accesos, y ampliación del
-  conjunto de etiquetas del modelo NER.
+- Backlog de seguridad: auditoría de accesos y expiración de sesión configurable.
+- Posible evolución: sincronización opcional entre equipos, integración de Lois (Filevine) para el
+  chat, y ampliación del conjunto de etiquetas del modelo NER.
 ```
