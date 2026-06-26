@@ -8,7 +8,7 @@
     "dev:backend": "nodemon backend/src/index.js",
     "dev:frontend": "npm run dev --workspace=frontend",
     "dev:electron": "wait-on http://localhost:5173 && electron .",
-    "test": "node --test \"backend/test/**/*.test.js\"",
+    "test": "node --test backend/test/*.test.js",
     "build:frontend": "npm run build --workspace=frontend",
     "rebuild:native": "electron-rebuild -f",
     "build:mac": "npm run build:frontend && npm run rebuild:native && electron-builder --mac",
