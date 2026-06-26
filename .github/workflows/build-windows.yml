@@ -4,6 +4,11 @@ name: Build Installers (Mac + Windows)
 on:
   workflow_dispatch:
 
+# electron-builder needs write access to create the GitHub Release and upload the
+# installers + auto-update metadata. The default GITHUB_TOKEN is read-only.
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
